@@ -93,7 +93,13 @@ class ReconocimientoController extends Controller
 
     public function obtenerPromotoresPorRegion($regionId)
     {
-        $promotores = Promotor::where('region_id', (int) $regionId)
+        $regionId = (int) $regionId;
+
+        // Un promotor pertenece a la región si así está registrado O si tiene
+        // grupos en municipios de esa región (el importador puede dejar region_id
+        // desfasado cuando un mismo promotor aparece en varias regiones).
+        $promotores = Promotor::where('region_id', $regionId)
+                              ->orWhereHas('grupos.municipio', fn($q) => $q->where('region_id', $regionId))
                               ->orderBy('nombre_completo', 'asc')
                               ->get(['id', 'nombre_completo']); 
                               
