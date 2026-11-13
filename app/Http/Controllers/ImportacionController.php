@@ -56,7 +56,7 @@ class ImportacionController extends Controller
         // Si el municipio no se identifica, se usa el primero de la región (o el id 1) y se avisa.
         $municipioRespaldo = function (?int $regionId) {
             $m = $regionId ? Municipio::where('region_id', $regionId)->orderBy('id')->first() : null;
-            return $m ? ['id' => $m->id, 'region_id' => $m->region_id]
+            return $m ? ['id' => (int) $m->id, 'region_id' => (int) $m->region_id]
                       : ['id' => 1, 'region_id' => Municipio::find(1)?->region_id ?? 1];
         };
 
@@ -211,22 +211,22 @@ class ImportacionController extends Controller
                         }
                     }
 
-                    // 8 RegiOn Oficial 
-                    $regionId = (int)substr($folioLimpio, 4, 1);
-                    if ($regionId < 1 || $regionId > 7) {
-                        $regionId = isset($col['G_IdZona']) && isset($fila[$col['G_IdZona']]) && is_numeric(trim($fila[$col['G_IdZona']])) 
-                            ? (int)trim($fila[$col['G_IdZona']]) 
-                            : 1;
-                    }
-                    if ($regionId < 1 || $regionId > 7) $regionId = 1;
+                    // 8 Región oficial: la columna G_IdZona (1-7). Antes se tomaba el 5.º dígito
+                    //   del folio, pero eso es el año (IDSE2023... => "3"), no la región.
+                    $rawZona  = isset($col['G_IdZona']) && isset($fila[$col['G_IdZona']]) ? trim($fila[$col['G_IdZona']]) : '';
+                    $regionId = is_numeric($rawZona) && (int)$rawZona >= 1 && (int)$rawZona <= 7 ? (int)$rawZona : null;
 
-                    // 9 Municipio
+                    // 9 Municipio (se busca primero dentro de la región indicada)
                     $municipio = $catalogo->municipio($muniTexto, $regionId);
                     if (!$municipio) {
                         $avisos["Municipio no identificado: '{$muniTexto}'"] = true;
                         $municipio = $municipioRespaldo($regionId);
+                    } elseif ($regionId && $municipio['region_id'] !== $regionId) {
+                        $avisos["'{$muniTexto}' pertenece a la región {$municipio['region_id']} en el catálogo, pero el CSV dice zona {$regionId}"] = true;
                     }
                     $municipioId = $municipio['id'];
+                    // La región del municipio manda; G_IdZona sólo si no hay municipio identificado
+                    $regionId = $municipio['region_id'] ?? $regionId ?? 1;
 
                     // 10 Promotor Real
                     $nombrePromotorReal = isset($col['G_NomPromotor']) && isset($fila[$col['G_NomPromotor']]) && !empty(trim($fila[$col['G_NomPromotor']])) 

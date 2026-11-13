@@ -23,7 +23,15 @@ class ReconocimientoController extends Controller
 
     public function individual($folio)
     {
-        $beneficiario = Beneficiario::where('folio', $folio)->firstOrFail();
+        // En BD el folio se guarda sin el prefijo "IDSE" (el importador lo quita),
+        // pero el usuario lo escribe como aparece en el padrón: IDSE202313633.
+        $folioLimpio = trim(str_ireplace('IDSE', '', $folio));
+        $beneficiario = Beneficiario::where('folio', $folioLimpio)->first();
+
+        if (!$beneficiario) {
+            return redirect()->route('reconocimientos.index')
+                ->with('warning', "No se encontró ningún beneficiario con el folio {$folio}.");
+        }
 
         if (class_exists(AuditoriaService::class)) {
             AuditoriaService::registrar(

@@ -20,10 +20,10 @@ class CatalogoService
     public function __construct()
     {
         foreach (Region::all(['id', 'nombre']) as $r) {
-            $this->regiones[self::normalizar($r->nombre)] = $r->id;
+            $this->regiones[self::normalizar($r->nombre)] = (int) $r->id;
         }
         foreach (Municipio::all(['id', 'region_id', 'nombre']) as $m) {
-            $this->municipios[] = ['id' => $m->id, 'region_id' => $m->region_id, 'nombre' => self::normalizar($m->nombre)];
+            $this->municipios[] = ['id' => (int) $m->id, 'region_id' => (int) $m->region_id, 'nombre' => self::normalizar($m->nombre)];
         }
     }
 
