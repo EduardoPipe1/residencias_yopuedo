@@ -61,8 +61,22 @@ class ImportacionController extends Controller
         };
 
         if (($handle = fopen($pathReal, "r")) !== false) {
+            // El archivo se acepta tal como lo exporta Excel, sin editarlo:
+            //  - Separador "," o ";" (Excel en español suele usar ";")
+            //  - Codificación UTF-8 (con o sin BOM) o ANSI/Windows-1252 ("CSV delimitado por comas")
+            $muestra   = (string) fgets($handle);
+            $separador = substr_count($muestra, ';') > substr_count($muestra, ',') ? ';' : ',';
+            $esUtf8    = mb_check_encoding(file_get_contents($pathReal, false, null, 0, 2_000_000), 'UTF-8');
+            rewind($handle);
+
+            $leerFila = function () use ($handle, $separador, $esUtf8) {
+                $fila = fgetcsv($handle, 0, $separador);   // 0 = sin límite de longitud por línea
+                if ($fila === false) return false;
+                return $esUtf8 ? $fila : array_map(fn ($v) => mb_convert_encoding((string) $v, 'UTF-8', 'Windows-1252'), $fila);
+            };
+
             // Lectura de la primera fila con encabezados
-            $cabecerasRaw = fgetcsv($handle, 10000, ",");
+            $cabecerasRaw = $leerFila();
             
             // Limpieza de espacios, comillas y caracteres ocultos 
             $cabeceras = array_map(function($h) {
@@ -76,7 +90,7 @@ class ImportacionController extends Controller
 
             if ($esArchivoGrupos) {
                 // FASE 1: Archivo de Grupos y Promotores
-                while (($fila = fgetcsv($handle, 10000, ",")) !== false) {
+                while (($fila = $leerFila()) !== false) {
                     $gpoInicial = isset($col['Gpo_Inicial']) && isset($fila[$col['Gpo_Inicial']]) ? trim($fila[$col['Gpo_Inicial']]) : null;
                     if (empty($gpoInicial)) continue;
 
@@ -112,7 +126,7 @@ class ImportacionController extends Controller
                 }
             } else {
                 // FASE 2: Padron IDSE 
-                while (($fila = fgetcsv($handle, 10000, ",")) !== false) {
+                while (($fila = $leerFila()) !== false) {
                     
                     // 1 Extraccion de Folio buscando por encabezado
                     $rawFolio = null;
