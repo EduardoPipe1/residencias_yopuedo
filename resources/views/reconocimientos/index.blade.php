@@ -1,90 +1,185 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="py-12 bg-gray-50 font-sans text-gray-800" x-data>
-    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+@section('contenido')
+<div class="w-full" x-data="reconocimientosApp()">
+    
+    <!-- Encabezado de Sección -->
+    <div class="mb-8 bg-white p-6 rounded-lg shadow-sm border-l-4 border-[#0072CE]">
+        <h1 class="text-2xl font-bold text-gray-900 uppercase tracking-wide">Módulo de Reconocimientos Oficiales</h1>
+        <p class="text-gray-600 mt-1">Generación de diplomas en formato PDF de manera individual o mediante filtrado operativo masivo.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        <h1 class="text-3xl font-extrabold text-gray-900 mb-8 text-center uppercase tracking-wide">
-            Emisión de Reconocimientos Oficiales
-        </h1>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            
-            <!-- TARJETA 1: IMPRESIÓN INDIVIDUAL -->
-            <div class="bg-white p-8 rounded-xl shadow-lg border-t-4 border-blue-600" x-data="{ idBeneficiario: '' }">
-                <h2 class="text-2xl font-bold mb-2 text-blue-700">Impresión Individual</h2>
-                <p class="text-gray-500 mb-6 text-sm">Genera el reconocimiento en PDF para un solo beneficiario.</p>
-                
-                <div class="mb-6">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">ID del Beneficiario</label>
-                    <input type="number" x-model="idBeneficiario" placeholder="Ej. 1" 
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 p-3 border bg-gray-50">
-                </div>
-                
-                <a :href="idBeneficiario ? '/reconocimientos/' + idBeneficiario + '/individual' : '#'" 
-                   :class="idBeneficiario ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 cursor-not-allowed text-gray-500'"
-                   class="block w-full text-center text-white font-bold py-3 px-4 rounded-lg transition-all"
-                   target="_blank">
-                    Generar PDF Individual
-                </a>
+        <!-- TARJETA 1: IMPRESIÓN INDIVIDUAL (ENLACE DIRECTO CON ESTILO DE BOTÓN) -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col">
+            <div class="bg-[#002F6C] px-6 py-4">
+                <h2 class="text-xl font-bold text-white flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    Impresión Individual (Folio IDSE)
+                </h2>
             </div>
-
-            <!-- TARJETA 2: IMPRESIÓN MASIVA -->
-            <div class="bg-white p-8 rounded-xl shadow-lg border-t-4 border-green-600">
-                <h2 class="text-2xl font-bold mb-2 text-green-700">Impresión Masiva (Filtros)</h2>
-                <p class="text-gray-500 mb-6 text-sm">Genera un solo archivo PDF con múltiples reconocimientos.</p>
+            <div class="p-6 grow flex flex-col">
+                <p class="text-gray-500 mb-6 text-sm">Ingresa el Folio IDSE del beneficiario (ej. IDSE202313633) para emitir su reconocimiento único.</p>
                 
-                <form action="/reconocimientos/masivo" method="GET" target="_blank" class="space-y-4">
+                <div class="mb-6 grow">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Folio IDSE</label>
+                    <div class="flex gap-2">
+                        <!-- Input de texto -->
+                        <input type="text" x-model="folioBeneficiario" placeholder="Ej. IDSE202313633" 
+                               class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#0072CE] focus:border-[#0072CE] p-3 border bg-gray-50 uppercase outline-none transition-colors">
+                        
+                        <!-- Botón interactivo que actúa como enlace hipervínculo seguro -->
+                        <a :href="folioBeneficiario && folioBeneficiario.trim() !== '' ? '/reconocimientos/' + folioBeneficiario.trim() + '/individual' : '#'" 
+                           :class="folioBeneficiario && folioBeneficiario.trim() !== '' ? 'bg-[#002F6C] hover:bg-[#001d42] shadow cursor-pointer' : 'bg-gray-300 cursor-not-allowed text-gray-500 pointer-events-none'"
+                           class="px-5 py-3 rounded-lg font-bold text-white transition-all shrink-0 flex items-center gap-1 text-center justify-center"
+                           target="_blank">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            Imprimir
+                        </a>
+                    </div>
+                    <span class="text-xs text-gray-500 mt-1 block">Escribe el folio y haz clic en el botón para abrir el PDF.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TARJETA 2: IMPRESIÓN MASIVA (Con Filtros Dependientes) -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="bg-green-700 px-6 py-4">
+                <h2 class="text-xl font-bold text-white flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    Impresión Masiva (Filtros)
+                </h2>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-500 mb-6 text-sm">Emite un bloque completo de reconocimientos aplicando los siguientes criterios operativos.</p>
+                
+                <form action="/reconocimientos/masivo" method="GET" target="_blank" class="space-y-5">
                     
-                    <!-- Filtro: Región -->
+                    <!-- Filtro: Región con Botón de Carga Explicito -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Región</label>
-                        <select name="region_id" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-500 p-2.5 border bg-gray-50">
-                            <option value="">-- Todas las Regiones --</option>
-                            @foreach($regiones as $region)
-                                <option value="{{ $region->id }}">{{ $region->nombre }}</option>
-                            @endforeach
-                        </select>
+                        <div class="flex gap-2">
+                            <select name="region_id" x-model="regionSeleccionada" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
+                                <option value="">-- Todas las Regiones --</option>
+                                @foreach($regiones as $region)
+                                    <option value="{{ $region->id }}">{{ $region->nombre }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" @click="cargarPromotores()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow transition shrink-0 flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                                Filtrar
+                            </button>
+                        </div>
+                        <span class="text-xs text-gray-500 mt-1 block">Selecciona región y haz clic en "Filtrar" para desplegar sus promotores.</span>
                     </div>
 
                     <!-- Filtro: Promotor -->
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Promotor</label>
-                        <select name="promotor_id" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-500 p-2.5 border bg-gray-50">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Promotor Asignado</label>
+                        <select name="promotor_id" x-model="promotorSeleccionado" @change="cargarGrupos()" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
                             <option value="">-- Todos los Promotores --</option>
-                            @foreach($promotores as $promotor)
-                                <option value="{{ $promotor->id }}">{{ $promotor->nombre_completo }}</option>
-                            @endforeach
+                            <template x-for="promotor in promotoresFiltrados" :key="promotor.id">
+                                <option :value="promotor.id" x-text="promotor.nombre_completo"></option>
+                            </template>
                         </select>
                     </div>
 
                     <!-- Filtro: Grupo -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Grupo Formativo</label>
-                        <select name="grupo_id" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-500 p-2.5 border bg-gray-50">
+                        <select name="grupo_id" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
                             <option value="">-- Todos los Grupos --</option>
-                            @foreach($grupos as $grupo)
-                                <option value="{{ $grupo->id }}">{{ $grupo->identificador_grupo }} - {{ $grupo->municipio->nombre ?? '' }}</option>
-                            @endforeach
+                            <template x-for="grupo in gruposFiltrados" :key="grupo.id">
+                                <option :value="grupo.id" x-text="grupo.nombre_mostrar"></option>
+                            </template>
                         </select>
                     </div>
 
                     <!-- Filtro: Estatus -->
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Estatus</label>
-                        <select name="estatus" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-500 p-2.5 border bg-gray-50">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Estatus del Beneficiario</label>
+                        <select name="estatus" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
                             <option value="Acreditado" selected>Acreditado (Por defecto)</option>
                             <option value="Registrado">Registrado</option>
+                            <option value="">-- Todos los Estatus --</option>
                         </select>
                     </div>
                     
-                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg mt-4 transition-all">
-                        Generar PDF Masivo
-                    </button>
+                    <div class="pt-2">
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all duration-200">
+                            Generar Lote Masivo
+                        </button>
+                    </div>
                 </form>
             </div>
-
         </div>
+
     </div>
 </div>
+
+<!-- Alertas de sesión -->
+@if(session('warning'))
+<div class="fixed bottom-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded shadow-lg max-w-md z-50" 
+     role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
+     x-transition:leave="transition ease-in duration-300"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0">
+    <p class="font-bold text-sm uppercase">Aviso del Sistema</p>
+    <p class="text-sm mt-1">{{ session('warning') }}</p>
+</div>
+@endif
+
+<!-- Lógica de Alpine JS para los selectores dependientes -->
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('reconocimientosApp', () => ({
+            folioBeneficiario: '',
+            regionSeleccionada: '', 
+            promotorSeleccionado: '',
+            
+            promotoresFiltrados: @json($promotores),
+            gruposFiltrados: @json($grupos->map(function($g){ return ['id'=>$g->id, 'nombre_mostrar'=>$g->identificador_grupo . ' - ' . ($g->municipio->nombre ?? '')]; })),
+
+            cargarPromotores() {
+                this.promotorSeleccionado = '';
+                this.promotoresFiltrados = [];
+                this.gruposFiltrados = [];
+                
+                if (this.regionSeleccionada) {
+                    fetch('/reconocimientos/api/promotores/' + this.regionSeleccionada)
+                        .then(res => res.json())
+                        .then(data => {
+                            this.promotoresFiltrados = data;
+                        });
+                    
+                    fetch('/reconocimientos/api/grupos/region/' + this.regionSeleccionada)
+                        .then(res => res.json())
+                        .then(data => {
+                            this.gruposFiltrados = data;
+                        });
+                } else {
+                    this.promotoresFiltrados = @json($promotores);
+                    this.gruposFiltrados = @json($grupos->map(function($g){ return ['id'=>$g->id, 'nombre_mostrar'=>$g->identificador_grupo . ' - ' . ($g->municipio->nombre ?? '')]; }));
+                }
+            },
+
+            cargarGrupos() {
+                this.gruposFiltrados = [];
+                
+                if (this.promotorSeleccionado) {
+                    fetch('/reconocimientos/api/grupos/promotor/' + this.promotorSeleccionado)
+                        .then(res => res.json())
+                        .then(data => {
+                            this.gruposFiltrados = data;
+                        });
+                } else if (this.regionSeleccionada) {
+                    this.cargarPromotores();
+                } else {
+                     this.gruposFiltrados = @json($grupos->map(function($g){ return ['id'=>$g->id, 'nombre_mostrar'=>$g->identificador_grupo . ' - ' . ($g->municipio->nombre ?? '')]; }));
+                }
+            }
+        }))
+    })
+</script>
 @endsection

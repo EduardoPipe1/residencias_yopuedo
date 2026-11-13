@@ -12,9 +12,6 @@ use Illuminate\Http\Request;
 
 class ReconocimientoController extends Controller
 {
-    /**
-     * Muestra la vista de configuración y filtros para emitir reconocimientos.
-     */
     public function index(Request $request)
     {
         $grupos = Grupo::with('municipio')->orderBy('identificador_grupo')->get();
@@ -24,12 +21,10 @@ class ReconocimientoController extends Controller
         return view('reconocimientos.index', compact('grupos', 'promotores', 'regiones'));
     }
 
-    /**
-     * Emite el reconocimiento individual en formato PDF y registra la auditoría.
-     */
-    public function individual(Beneficiario $beneficiario)
+    public function individual($folio)
     {
-        // Registrar evento en la bitácora inmutable
+        $beneficiario = Beneficiario::where('folio', $folio)->firstOrFail();
+
         if (class_exists(AuditoriaService::class)) {
             AuditoriaService::registrar(
                 'beneficiarios',
@@ -46,9 +41,6 @@ class ReconocimientoController extends Controller
         return $pdf->stream("Reconocimiento_{$beneficiario->folio}.pdf");
     }
 
-    /**
-     * Emite reconocimientos de forma masiva en PDF aplicando filtros operativos.
-     */
     public function masivo(Request $request)
     {
         $query = Beneficiario::with('grupo.promotor', 'grupo.municipio.region');
@@ -68,7 +60,6 @@ class ReconocimientoController extends Controller
         if ($request->filled('estatus')) {
             $query->where('estatus', $request->estatus);
         } else {
-            // Por regla de negocio, los reconocimientos corresponden a los acreditados
             $query->where('estatus', 'Acreditado');
         }
 
@@ -80,7 +71,6 @@ class ReconocimientoController extends Controller
             return back()->with('warning', 'No se encontraron registros acreditados con los filtros seleccionados.');
         }
 
-        // Registrar auditoría para cada beneficiario emitido
         if (class_exists(AuditoriaService::class)) {
             foreach ($beneficiarios as $beneficiario) {
                 AuditoriaService::registrar(
@@ -95,5 +85,54 @@ class ReconocimientoController extends Controller
                   ->setPaper('letter', 'landscape');
 
         return $pdf->stream('Reconocimientos_Masivos_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    // ==============================================================================
+    // ENDPOINTS API PARA LOS SELECTS DEPENDIENTES
+    // ==============================================================================
+
+    public function obtenerPromotoresPorRegion($regionId)
+    {
+        $promotores = Promotor::where('region_id', (int) $regionId)
+                              ->orderBy('nombre_completo', 'asc')
+                              ->get(['id', 'nombre_completo']); 
+                              
+        return response()->json($promotores);
+    }
+
+    public function obtenerGruposPorRegion($regionId)
+    {
+        $grupos = Grupo::with('municipio')
+            ->whereHas('municipio', function($q) use ($regionId) {
+                $q->where('region_id', (int) $regionId);
+            })
+            ->orderBy('identificador_grupo')
+            ->get();
+        
+        $gruposMapeados = $grupos->map(function ($grupo) {
+            return [
+                'id' => $grupo->id,
+                'nombre_mostrar' => $grupo->identificador_grupo . ' - ' . ($grupo->municipio->nombre ?? 'Sin Municipio')
+            ];
+        });
+
+        return response()->json($gruposMapeados);
+    }
+
+    public function obtenerGruposPorPromotor($promotorId)
+    {
+        $grupos = Grupo::with('municipio')
+            ->where('promotor_id', (int) $promotorId)
+            ->orderBy('identificador_grupo')
+            ->get();
+        
+        $gruposMapeados = $grupos->map(function ($grupo) {
+            return [
+                'id' => $grupo->id,
+                'nombre_mostrar' => $grupo->identificador_grupo . ' - ' . ($grupo->municipio->nombre ?? 'Sin Municipio')
+            ];
+        });
+
+        return response()->json($gruposMapeados);
     }
 }

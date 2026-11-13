@@ -39,8 +39,17 @@ Route::prefix('listas')->controller(ListaController::class)->name('listas.')->gr
 // Módulo RECONOCIMIENTOS (Diplomas institucionales)
 Route::prefix('reconocimientos')->controller(ReconocimientoController::class)->name('reconocimientos.')->group(function () {
     Route::get('/', 'index')->name('index');
+    
+    // --- RUTAS API PARA SELECTS DEPENDIENTES (Deben ir antes de las rutas con parámetros dinámicos) ---
+    Route::get('/api/promotores/{regionId}', 'obtenerPromotoresPorRegion')->name('api.promotores');
+    Route::get('/api/grupos/region/{regionId}', 'obtenerGruposPorRegion')->name('api.grupos.region');
+    Route::get('/api/grupos/promotor/{promotorId}', 'obtenerGruposPorPromotor')->name('api.grupos.promotor');
+    
+    // Rutas de emisión
     Route::get('/{beneficiario}/individual', 'individual')->name('individual');
-    Route::post('/masivo', 'masivo')->name('masivo');
+    
+    // Se cambia a GET porque el <form> de HTML hace la petición por GET para los filtros en la URL
+    Route::get('/masivo', 'masivo')->name('masivo'); 
 });
 
 // Módulo IMPORTACIONES (Carga masiva de CSV 113 columnas)
