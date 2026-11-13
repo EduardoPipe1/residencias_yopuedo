@@ -10,6 +10,7 @@ use App\Models\Grupo;
 use App\Models\Promotor;
 use App\Models\Municipio;
 use App\Models\Region;
+use App\Services\CatalogoService;
 
 class ImportacionController extends Controller
 {
@@ -49,6 +50,15 @@ class ImportacionController extends Controller
         $pathReal = Storage::disk($this->disco)->path($ruta);
 
         $contadorRegistros = 0;
+        $catalogo = new CatalogoService();
+        $avisos = [];   // municipios/regiones que no se pudieron identificar
+
+        // Si el municipio no se identifica, se usa el primero de la región (o el id 1) y se avisa.
+        $municipioRespaldo = function (?int $regionId) {
+            $m = $regionId ? Municipio::where('region_id', $regionId)->orderBy('id')->first() : null;
+            return $m ? ['id' => $m->id, 'region_id' => $m->region_id]
+                      : ['id' => 1, 'region_id' => Municipio::find(1)?->region_id ?? 1];
+        };
 
         if (($handle = fopen($pathReal, "r")) !== false) {
             // Lectura de la primera fila con encabezados
@@ -75,11 +85,15 @@ class ImportacionController extends Controller
                     $nombreMuni     = isset($col['Municipio']) && isset($fila[$col['Municipio']]) ? trim($fila[$col['Municipio']]) : '';
                     $lugarFecha     = isset($col['Lugar_Fecha_Evento']) && isset($fila[$col['Lugar_Fecha_Evento']]) ? trim($fila[$col['Lugar_Fecha_Evento']]) : null;
 
-                    $region = Region::where('nombre', 'LIKE', "%{$nombreRegion}%")->first();
-                    $regionId = $region ? $region->id : 1;
-
-                    $municipio = Municipio::where('nombre', 'LIKE', "%{$nombreMuni}%")->first();
-                    $municipioId = $municipio ? $municipio->id : 1;
+                    $regionId  = $catalogo->region($nombreRegion);
+                    $municipio = $catalogo->municipio($nombreMuni, $regionId);
+                    if (!$municipio) {
+                        $avisos["Municipio no identificado: '{$nombreMuni}'"] = true;
+                        $municipio = $municipioRespaldo($regionId);
+                    }
+                    $municipioId = $municipio['id'];
+                    // La región del municipio es la fuente de verdad
+                    $regionId = $municipio['region_id'] ?? $regionId ?? 1;
 
                     $promotor = Promotor::firstOrCreate(
                         ['nombre_completo' => $nombrePromotor],
@@ -207,8 +221,12 @@ class ImportacionController extends Controller
                     if ($regionId < 1 || $regionId > 7) $regionId = 1;
 
                     // 9 Municipio
-                    $municipio = Municipio::where('nombre', 'LIKE', "%{$muniTexto}%")->first();
-                    $municipioId = $municipio ? $municipio->id : 1;
+                    $municipio = $catalogo->municipio($muniTexto, $regionId);
+                    if (!$municipio) {
+                        $avisos["Municipio no identificado: '{$muniTexto}'"] = true;
+                        $municipio = $municipioRespaldo($regionId);
+                    }
+                    $municipioId = $municipio['id'];
 
                     // 10 Promotor Real
                     $nombrePromotorReal = isset($col['G_NomPromotor']) && isset($fila[$col['G_NomPromotor']]) && !empty(trim($fila[$col['G_NomPromotor']])) 
@@ -254,9 +272,22 @@ class ImportacionController extends Controller
             fclose($handle);
         }
 
-        return redirect()
+        // Un promotor puede aparecer en varias filas/regiones: su región final es
+        // la región donde tiene más grupos.
+        $promotoresCorregidos = CatalogoService::sincronizarRegionesPromotores();
+
+        $respuesta = redirect()
             ->route('importaciones.index')
-            ->with('success', "Padrón migrado con éxito. Se procesaron {$contadorRegistros} registros aplicando reglas oficiales.");
+            ->with('success', "Padrón migrado con éxito. Se procesaron {$contadorRegistros} registros aplicando reglas oficiales."
+                . ($promotoresCorregidos ? " Se ajustó la región de {$promotoresCorregidos} promotor(es)." : ''));
+
+        if ($avisos) {
+            $lista = array_keys($avisos);
+            $respuesta->with('warning', count($lista) . ' valor(es) no se identificaron en el catálogo y se asignaron a un municipio de respaldo: '
+                . implode('; ', array_slice($lista, 0, 10)) . (count($lista) > 10 ? '…' : ''));
+        }
+
+        return $respuesta;
     }
 
     public function show(string $archivo)
