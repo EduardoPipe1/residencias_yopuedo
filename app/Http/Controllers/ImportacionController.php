@@ -1,0 +1,268 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
+use App\Models\Beneficiario;
+use App\Models\Grupo;
+use App\Models\Promotor;
+use App\Models\Municipio;
+use App\Models\Region;
+
+class ImportacionController extends Controller
+{
+    private string $disco = 'local';
+    private string $carpeta = 'importaciones';
+
+    public function index()
+    {
+        $archivos = collect(Storage::disk($this->disco)->files($this->carpeta))
+            ->map(fn ($ruta) => [
+                'nombre' => basename($ruta),
+                'tamano' => Storage::disk($this->disco)->size($ruta),
+                'fecha'  => Storage::disk($this->disco)->lastModified($ruta),
+            ])
+            ->sortByDesc('fecha')
+            ->values();
+
+        return view('importaciones.index', compact('archivos'));
+    }
+
+    public function store(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        $request->validate([
+            'archivo' => ['required', 'file', 'mimes:csv,txt', 'max:102400'],
+        ], [
+            'archivo.required' => 'Selecciona un archivo CSV para importar.',
+            'archivo.mimes'    => 'El archivo debe ser de tipo delimitado por comas (.csv).',
+            'archivo.max'      => 'El tamaño máximo permitido es de 100 MB.',
+        ]);
+
+        $archivo = $request->file('archivo');
+        $nombre = now()->format('Ymd_His') . '_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $archivo->getClientOriginalName());
+        $ruta = $archivo->storeAs($this->carpeta, $nombre, $this->disco);
+        $pathReal = Storage::disk($this->disco)->path($ruta);
+
+        $contadorRegistros = 0;
+
+        if (($handle = fopen($pathReal, "r")) !== false) {
+            // Lectura de la primera fila con encabezados
+            $cabecerasRaw = fgetcsv($handle, 10000, ",");
+            
+            // Limpieza de espacios, comillas y caracteres ocultos 
+            $cabeceras = array_map(function($h) {
+                return trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $h));
+            }, $cabecerasRaw ?: []);
+
+            $col = array_flip($cabeceras);
+
+            // Detección del tipo de archivo
+            $esArchivoGrupos = isset($col['Coordinador_Promotor']) || isset($col['Gpo_Inicial']);
+
+            if ($esArchivoGrupos) {
+                // FASE 1: Archivo de Grupos y Promotores
+                while (($fila = fgetcsv($handle, 10000, ",")) !== false) {
+                    $gpoInicial = isset($col['Gpo_Inicial']) && isset($fila[$col['Gpo_Inicial']]) ? trim($fila[$col['Gpo_Inicial']]) : null;
+                    if (empty($gpoInicial)) continue;
+
+                    $nombrePromotor = isset($col['Coordinador_Promotor']) && isset($fila[$col['Coordinador_Promotor']]) ? trim($fila[$col['Coordinador_Promotor']]) : 'PROMOTOR GENERAL';
+                    $nombreRegion   = isset($col['Region']) && isset($fila[$col['Region']]) ? trim($fila[$col['Region']]) : '';
+                    $nombreMuni     = isset($col['Municipio']) && isset($fila[$col['Municipio']]) ? trim($fila[$col['Municipio']]) : '';
+                    $lugarFecha     = isset($col['Lugar_Fecha_Evento']) && isset($fila[$col['Lugar_Fecha_Evento']]) ? trim($fila[$col['Lugar_Fecha_Evento']]) : null;
+
+                    $region = Region::where('nombre', 'LIKE', "%{$nombreRegion}%")->first();
+                    $regionId = $region ? $region->id : 1;
+
+                    $municipio = Municipio::where('nombre', 'LIKE', "%{$nombreMuni}%")->first();
+                    $municipioId = $municipio ? $municipio->id : 1;
+
+                    $promotor = Promotor::firstOrCreate(
+                        ['nombre_completo' => $nombrePromotor],
+                        ['region_id' => $regionId, 'estatus' => 'Activo']
+                    );
+
+                    Grupo::updateOrCreate(
+                        ['identificador_grupo' => $gpoInicial],
+                        [
+                            'promotor_id'        => $promotor->id,
+                            'municipio_id'       => $municipioId,
+                            'lugar_fecha_evento' => $lugarFecha,
+                        ]
+                    );
+                    $contadorRegistros++;
+                }
+            } else {
+                // FASE 2: Padron IDSE 
+                while (($fila = fgetcsv($handle, 10000, ",")) !== false) {
+                    
+                    // 1 Extraccion de Folio buscando por encabezado
+                    $rawFolio = null;
+                    if (isset($col['P_FolioBeneficiario']) && isset($fila[$col['P_FolioBeneficiario']])) {
+                        $rawFolio = $fila[$col['P_FolioBeneficiario']];
+                    } elseif (isset($col['Folio']) && isset($fila[$col['Folio']])) {
+                        $rawFolio = $fila[$col['Folio']];
+                    } elseif (isset($fila[2]) && !empty(trim($fila[2]))) {
+                        $rawFolio = $fila[2]; // Columna C
+                    }
+
+                    $folioLimpio = trim(str_ireplace('IDSE', '', (string)$rawFolio));
+                    
+                    // Si no hay folio en esta fila, se omite (para evitar filas en blanco)
+                    if (empty($folioLimpio)) {
+                        continue;
+                    }
+
+                    // 2 CURP 
+                    $curp = null;
+                    if (isset($col['P_CURP']) && isset($fila[$col['P_CURP']])) {
+                        $curp = trim($fila[$col['P_CURP']]);
+                    } elseif (isset($col['CURP']) && isset($fila[$col['CURP']])) {
+                        $curp = trim($fila[$col['CURP']]);
+                    }
+                    if (empty($curp)) {
+                        $curp = 'SP_' . $folioLimpio;
+                    }
+
+                    // 3 Nombres y Apellidos
+                    $nombre = isset($col['P_Nombre']) && isset($fila[$col['P_Nombre']]) 
+                        ? trim($fila[$col['P_Nombre']]) 
+                        : (isset($col['Nombre']) && isset($fila[$col['Nombre']]) ? trim($fila[$col['Nombre']]) : '');
+
+                    $primerApellido = isset($col['P_PrimerApellido']) && isset($fila[$col['P_PrimerApellido']]) 
+                        ? trim($fila[$col['P_PrimerApellido']]) 
+                        : '';
+
+                    $segundoApellido = isset($col['P_SegundoApellido']) && isset($fila[$col['P_SegundoApellido']]) && !empty(trim($fila[$col['P_SegundoApellido']])) 
+                        ? trim($fila[$col['P_SegundoApellido']]) 
+                        : null;
+
+                    // 4 Grupo y Municipio
+                    $grupoIdTexto = isset($col['G_IdentificadorGrupo']) && isset($fila[$col['G_IdentificadorGrupo']]) 
+                        ? trim($fila[$col['G_IdentificadorGrupo']]) 
+                        : (isset($col['Grupo']) && isset($fila[$col['Grupo']]) ? trim($fila[$col['Grupo']]) : '7171');
+
+                    $muniTexto = isset($col['G_Municipio']) && isset($fila[$col['G_Municipio']]) 
+                        ? trim($fila[$col['G_Municipio']]) 
+                        : (isset($col['P_Municipio']) && isset($fila[$col['P_Municipio']]) ? trim($fila[$col['P_Municipio']]) : '');
+
+                    // 5 Año y Textos complementarios
+                    $anioPadron = isset($col['AnioDePadron']) && isset($fila[$col['AnioDePadron']]) && is_numeric(trim($fila[$col['AnioDePadron']])) 
+                        ? (int)trim($fila[$col['AnioDePadron']]) 
+                        : 2026;
+
+                    $respAprendizaje = isset($col['respuestaAprendizajesCambio']) && isset($fila[$col['respuestaAprendizajesCambio']]) 
+                        ? trim($fila[$col['respuestaAprendizajesCambio']]) 
+                        : null;
+
+                    $observaciones = isset($col['Observaciones']) && isset($fila[$col['Observaciones']]) 
+                        ? trim($fila[$col['Observaciones']]) 
+                        : null;
+
+                    // 6 Acreditado / No Acreditado y 100% / 0%
+                    $rawEstatus = isset($col['Estatus']) && isset($fila[$col['Estatus']]) ? trim($fila[$col['Estatus']]) : '';
+                    $rawAvance  = isset($col['PorcAvance']) && isset($fila[$col['PorcAvance']]) ? str_replace('%', '', trim($fila[$col['PorcAvance']])) : '0';
+                    $avanceNum  = (float)$rawAvance;
+
+                    $esAcreditado = (
+                        strcasecmp($rawEstatus, 'Acreditado') === 0 || 
+                        strcasecmp($rawEstatus, 'GRADUADO') === 0 || 
+                        $avanceNum >= 100
+                    );
+
+                    $estatusFinal    = $esAcreditado ? 'Acreditado' : 'No Acreditado';
+                    $porcAvanceFinal = $esAcreditado ? 100.00 : 0.00;
+                    $totAsistencias  = isset($col['TotAsistencias']) && isset($fila[$col['TotAsistencias']]) && is_numeric(trim($fila[$col['TotAsistencias']])) 
+                        ? (int)trim($fila[$col['TotAsistencias']]) 
+                        : ($esAcreditado ? 10 : 0);
+
+                    // 7 Fecha de Término
+                    $rawFecha = isset($col['FechaTermino']) && isset($fila[$col['FechaTermino']]) ? trim($fila[$col['FechaTermino']]) : '';
+                    $fechaTermino = null;
+
+                    if (!empty($rawFecha) && !str_contains($rawFecha, '#')) {
+                        try {
+                            if (str_contains($rawFecha, '/')) {
+                                $partesFecha = explode(' ', $rawFecha)[0];
+                                $fechaTermino = Carbon::createFromFormat('d/m/Y', $partesFecha)->format('Y-m-d');
+                            } else {
+                                $fechaTermino = Carbon::parse($rawFecha)->format('Y-m-d');
+                            }
+                        } catch (\Exception $e) {
+                            $fechaTermino = null;
+                        }
+                    }
+
+                    // 8 RegiOn Oficial 
+                    $regionId = (int)substr($folioLimpio, 4, 1);
+                    if ($regionId < 1 || $regionId > 7) {
+                        $regionId = isset($col['G_IdZona']) && isset($fila[$col['G_IdZona']]) && is_numeric(trim($fila[$col['G_IdZona']])) 
+                            ? (int)trim($fila[$col['G_IdZona']]) 
+                            : 1;
+                    }
+                    if ($regionId < 1 || $regionId > 7) $regionId = 1;
+
+                    // 9 Municipio
+                    $municipio = Municipio::where('nombre', 'LIKE', "%{$muniTexto}%")->first();
+                    $municipioId = $municipio ? $municipio->id : 1;
+
+                    // 10 Promotor Real
+                    $nombrePromotorReal = isset($col['G_NomPromotor']) && isset($fila[$col['G_NomPromotor']]) && !empty(trim($fila[$col['G_NomPromotor']])) 
+                        ? trim($fila[$col['G_NomPromotor']]) 
+                        : 'COORDINACIÓN REGIONAL ' . $regionId;
+
+                    $promotor = Promotor::firstOrCreate(
+                        ['nombre_completo' => $nombrePromotorReal],
+                        ['region_id' => $regionId, 'estatus' => 'Activo']
+                    );
+
+                    // 11 Grupo Formativo
+                    $grupo = Grupo::firstOrCreate(
+                        ['identificador_grupo' => $grupoIdTexto],
+                        [
+                            'promotor_id'  => $promotor->id,
+                            'municipio_id' => $municipioId,
+                        ]
+                    );
+
+                    // 12 Upsert del Beneficiario por Folio
+                    Beneficiario::updateOrCreate(
+                        ['folio' => $folioLimpio],
+                        [
+                            'curp'                         => $curp,
+                            'nombre'                       => $nombre,
+                            'primer_apellido'              => $primerApellido,
+                            'segundo_apellido'             => $segundoApellido,
+                            'grupo_id'                     => $grupo->id,
+                            'tot_asistencias'              => $totAsistencias,
+                            'porc_avance'                  => $porcAvanceFinal,
+                            'estatus'                      => $estatusFinal,
+                            'anio_padron'                  => $anioPadron,
+                            'fecha_termino'                => $fechaTermino,
+                            'respuesta_aprendizajes_cambio' => $respAprendizaje,
+                            'observaciones'                => $observaciones,
+                        ]
+                    );
+
+                    $contadorRegistros++;
+                }
+            }
+            fclose($handle);
+        }
+
+        return redirect()
+            ->route('importaciones.index')
+            ->with('success', "Padrón migrado con éxito. Se procesaron {$contadorRegistros} registros aplicando reglas oficiales.");
+    }
+
+    public function show(string $archivo)
+    {
+        $ruta = $this->carpeta . '/' . basename($archivo);
+        abort_unless(Storage::disk($this->disco)->exists($ruta), 404);
+        return Storage::disk($this->disco)->download($ruta);
+    }
+}
