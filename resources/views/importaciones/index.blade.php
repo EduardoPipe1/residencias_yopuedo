@@ -38,9 +38,9 @@
             @csrf
             <div class="mb-5">
                 <label for="archivo" class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                    Archivo delimitado por comas (.csv)
+                    Archivo del padrón: Excel (.xlsx) o CSV
                 </label>
-                <input type="file" name="archivo" id="archivo" accept=".csv" required
+                <input type="file" name="archivo" id="archivo" accept=".xlsx,.csv" required
                        class="block w-full text-sm text-gray-700 border border-gray-300 rounded-md p-2 bg-gray-50
                               file:mr-4 file:py-2 file:px-4 file:rounded file:border-0
                               file:bg-[#004F9F] file:text-white file:text-xs file:font-semibold file:uppercase hover:file:bg-[#003B77] file:cursor-pointer">

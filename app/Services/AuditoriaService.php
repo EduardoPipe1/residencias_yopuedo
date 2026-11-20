@@ -15,7 +15,7 @@ class AuditoriaService
     public const ACCIONES = [
         'inicio_sesion'                     => 'Inicio de sesión',
         'cierre_sesion'                     => 'Cierre de sesión',
-        'importacion_padron'                => 'Importación de padrón (CSV)',
+        'importacion_padron'                => 'Importación de padrón',
         'emision_reconocimiento_individual' => 'Reconocimiento individual',
         'emision_reconocimiento_masivo'     => 'Reconocimientos masivos',
         'emision_lista_reconocimientos'     => 'Lista de reconocimientos',

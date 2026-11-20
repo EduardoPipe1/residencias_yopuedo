@@ -13,6 +13,7 @@ use App\Models\Municipio;
 use App\Models\Region;
 use App\Services\AuditoriaService;
 use App\Services\CatalogoService;
+use App\Services\ExcelACsvService;
 
 class ImportacionController extends Controller
 {
@@ -41,10 +42,11 @@ class ImportacionController extends Controller
         ini_set('memory_limit', '512M');
 
         $request->validate([
-            'archivo' => ['required', 'file', 'mimes:csv,txt', 'max:102400'],
+            'archivo' => ['required', 'file', 'mimes:csv,txt,xlsx', 'extensions:csv,xlsx', 'max:102400'],
         ], [
-            'archivo.required' => 'Selecciona un archivo CSV para importar.',
-            'archivo.mimes'    => 'El archivo debe ser de tipo delimitado por comas (.csv).',
+            'archivo.required' => 'Selecciona el archivo del padrón para importar.',
+            'archivo.mimes'      => 'El archivo debe ser Excel (.xlsx) o delimitado por comas (.csv).',
+            'archivo.extensions' => 'El archivo debe ser Excel (.xlsx) o delimitado por comas (.csv).',
             'archivo.max'      => 'El tamaño máximo permitido es de 100 MB.',
         ]);
 
@@ -52,6 +54,19 @@ class ImportacionController extends Controller
         $nombre = now()->format('Ymd_His') . '_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $archivo->getClientOriginalName());
         $ruta = $archivo->storeAs($this->carpeta, $nombre, $this->disco);
         $pathReal = Storage::disk($this->disco)->path($ruta);
+
+        // Excel (.xlsx): se convierte a CSV temporal y sigue el mismo proceso
+        $hojaExcel = null;
+        $csvTemporal = null;
+        if (strtolower($archivo->getClientOriginalExtension()) === 'xlsx') {
+            try {
+                [$csvTemporal, $hojaExcel] = ExcelACsvService::convertir($pathReal);
+            } catch (\Throwable $e) {
+                return redirect()->route('importaciones.index')
+                    ->withErrors(['archivo' => 'No se pudo leer el Excel: ' . $e->getMessage()]);
+            }
+            $pathReal = $csvTemporal;
+        }
 
         $contadorRegistros = 0;
         $catalogo = new CatalogoService();
@@ -96,6 +111,15 @@ class ImportacionController extends Controller
 
             // Detección del tipo de archivo
             $esArchivoGrupos = isset($col['Coordinador_Promotor']) || isset($col['Gpo_Inicial']);
+
+            // Si no trae los encabezados del padrón, no es el archivo correcto: se avisa en vez de "importar 0"
+            if (!$esArchivoGrupos && !isset($col['P_FolioBeneficiario']) && !isset($col['Folio'])) {
+                fclose($handle);
+                if ($csvTemporal) @unlink($csvTemporal);
+                return redirect()->route('importaciones.index')->withErrors([
+                    'archivo' => 'El archivo no tiene el formato del padrón IDSE (no se encontró la columna P_FolioBeneficiario). Verifica que sea el archivo correcto.',
+                ]);
+            }
 
             if ($esArchivoGrupos) {
                 // FASE 1: Archivo de Grupos y Promotores
@@ -323,6 +347,9 @@ class ImportacionController extends Controller
             }
             fclose($handle);
         }
+        if ($csvTemporal) {
+            @unlink($csvTemporal);
+        }
 
         // Un promotor puede aparecer en varias filas/regiones: su región final es
         // la región donde tiene más grupos.
@@ -331,6 +358,7 @@ class ImportacionController extends Controller
         AuditoriaService::registrar('beneficiarios', null, 'importacion_padron', null, [
             'archivo'               => $archivo->getClientOriginalName(),
             'archivo_guardado'      => $nombre,
+            'hoja_excel'            => $hojaExcel,
             'registros_procesados'  => $contadorRegistros,
             'promotores_corregidos' => $promotoresCorregidos,
             'grupos_reasignados'    => $gruposReasignados,
