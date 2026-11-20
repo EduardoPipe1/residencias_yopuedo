@@ -33,7 +33,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
         AuditoriaService::registrar('users', Auth::id(), 'inicio_sesion', null, null, 'Inicio de sesión');
 
-        return redirect()->intended('/');
+        return redirect()->intended('/idse');
     }
 
     public function logout(Request $request)

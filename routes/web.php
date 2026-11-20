@@ -14,7 +14,10 @@ use App\Http\Controllers\MunicipioController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\ImportacionController;
 
-// Inicio de sesión (única ruta pública)
+// Página de bienvenida (pública): botón para iniciar sesión o entrar al sistema
+Route::view('/', 'dashboard')->name('home');
+
+// Inicio de sesión
 Route::get('/login', [AuthController::class, 'mostrarLogin'])->name('login')->middleware('guest');
 Route::post('/login', [AuthController::class, 'login'])->middleware(['guest', 'throttle:10,1']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
@@ -22,9 +25,6 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 // Todo el sistema requiere sesión iniciada
 Route::middleware('auth')->group(function () {
 
-Route::get('/', function () {
-    return view('dashboard');
-})->name('home');
 
 // Módulo IDSE (Padrón, buscador con filtros y persistencia)
 Route::prefix('idse')->controller(IdseController::class)->name('idse.')->group(function () {
