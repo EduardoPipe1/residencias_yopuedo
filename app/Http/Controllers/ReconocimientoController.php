@@ -22,7 +22,7 @@ class ReconocimientoController extends Controller
             'Región'   => $request->filled('region_id') ? (Region::find($request->region_id)->nombre ?? $request->region_id) : 'Todas',
             'Promotor' => $request->filled('promotor_id') ? (Promotor::find($request->promotor_id)->nombre_completo ?? $request->promotor_id) : 'Todos',
             'Grupo'    => $request->filled('grupo_id') ? (Grupo::find($request->grupo_id)->identificador_grupo ?? $request->grupo_id) : 'Todos',
-            'Estatus'  => $request->input('estatus') ?: 'Acreditado',
+            'Estatus'  => 'Acreditado',
         ];
     }
 
@@ -78,11 +78,8 @@ class ReconocimientoController extends Controller
             $query->whereHas('grupo.municipio', fn($q) => $q->where('region_id', $request->region_id));
         }
 
-        if ($request->filled('estatus')) {
-            $query->where('estatus', $request->estatus);
-        } else {
-            $query->where('estatus', 'Acreditado');
-        }
+        // Los reconocimientos se emiten únicamente a beneficiarios acreditados
+        $query->where('estatus', 'Acreditado');
 
         // Límite por impresión: un PDF con miles de diplomas agota la memoria del servidor y
         // tampoco es práctico de mandar a la impresora. Se pide afinar el filtro.

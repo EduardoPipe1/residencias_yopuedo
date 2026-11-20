@@ -90,15 +90,9 @@
                         </select>
                     </div>
 
-                    <!-- Filtro: Estatus -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Estatus del Beneficiario</label>
-                        <select name="estatus" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
-                            <option value="Acreditado" selected>Acreditado (Por defecto)</option>
-                            <option value="Registrado">Registrado</option>
-                            <option value="">-- Todos los Estatus --</option>
-                        </select>
-                    </div>
+                    {{-- Los reconocimientos se emiten únicamente a beneficiarios acreditados --}}
+                    <input type="hidden" name="estatus" value="Acreditado">
+                    <p class="text-xs text-gray-500">Se imprimen únicamente los beneficiarios con estatus <span class="font-semibold">Acreditado</span>.</p>
                     
                     <div class="pt-2">
                         <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all duration-200">
