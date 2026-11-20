@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use App\Models\Beneficiario;
@@ -33,7 +34,9 @@ class ImportacionController extends Controller
 
     public function store(Request $request)
     {
-        set_time_limit(600);
+        // Sin límite de tiempo: el padrón crece en cada carga (+60 mil folios).
+        // La velocidad se resuelve abajo con lotes y transacciones.
+        set_time_limit(0);
         ini_set('memory_limit', '512M');
 
         $request->validate([
@@ -54,10 +57,14 @@ class ImportacionController extends Controller
         $avisos = [];   // municipios/regiones que no se pudieron identificar
 
         // Si el municipio no se identifica, se usa el primero de la región (o el id 1) y se avisa.
-        $municipioRespaldo = function (?int $regionId) {
+        $cacheRespaldo = [];
+        $municipioRespaldo = function (?int $regionId) use (&$cacheRespaldo) {
+            $clave = $regionId ?? 0;
+            if (isset($cacheRespaldo[$clave])) return $cacheRespaldo[$clave];
             $m = $regionId ? Municipio::where('region_id', $regionId)->orderBy('id')->first() : null;
-            return $m ? ['id' => (int) $m->id, 'region_id' => (int) $m->region_id]
-                      : ['id' => 1, 'region_id' => Municipio::find(1)?->region_id ?? 1];
+            return $cacheRespaldo[$clave] = $m
+                ? ['id' => (int) $m->id, 'region_id' => (int) $m->region_id]
+                : ['id' => 1, 'region_id' => (int) (Municipio::find(1)?->region_id ?? 1)];
         };
 
         if (($handle = fopen($pathReal, "r")) !== false) {
@@ -125,7 +132,27 @@ class ImportacionController extends Controller
                     $contadorRegistros++;
                 }
             } else {
-                // FASE 2: Padron IDSE 
+                // FASE 2: Padron IDSE
+                // Rendimiento: promotores y grupos se recuerdan en memoria (una consulta por
+                // promotor/grupo distinto, no por fila) y los beneficiarios se guardan en lotes
+                // de 1,000 con un solo INSERT ... ON DUPLICATE KEY UPDATE por lote, dentro de
+                // una transacción. Si algo falla, sólo se pierde el lote en curso.
+                $cachePromotores = [];   // nombre => id
+                $cacheGrupos = [];       // identificador => id
+                $lote = [];              // folio => datos del beneficiario
+                $tamanoLote = 1000;
+                $guardarLote = function () use (&$lote) {
+                    if (!$lote) return;
+                    DB::transaction(function () use ($lote) {
+                        Beneficiario::upsert(array_values($lote), ['folio'], [
+                            'curp', 'nombre', 'primer_apellido', 'segundo_apellido', 'grupo_id',
+                            'tot_asistencias', 'porc_avance', 'estatus', 'anio_padron',
+                            'fecha_termino', 'respuesta_aprendizajes_cambio', 'observaciones',
+                        ]);
+                    });
+                    $lote = [];
+                };
+
                 while (($fila = $leerFila()) !== false) {
                     
                     // 1 Extraccion de Folio buscando por encabezado
@@ -247,29 +274,29 @@ class ImportacionController extends Controller
                         ? trim($fila[$col['G_NomPromotor']]) 
                         : 'COORDINACIÓN REGIONAL ' . $regionId;
 
-                    $promotor = Promotor::firstOrCreate(
+                    $promotorId = $cachePromotores[$nombrePromotorReal] ??= Promotor::firstOrCreate(
                         ['nombre_completo' => $nombrePromotorReal],
                         ['region_id' => $regionId, 'estatus' => 'Activo']
-                    );
+                    )->id;
 
                     // 11 Grupo Formativo
-                    $grupo = Grupo::firstOrCreate(
+                    $grupoId = $cacheGrupos[$grupoIdTexto] ??= Grupo::firstOrCreate(
                         ['identificador_grupo' => $grupoIdTexto],
                         [
-                            'promotor_id'  => $promotor->id,
+                            'promotor_id'  => $promotorId,
                             'municipio_id' => $municipioId,
                         ]
-                    );
+                    )->id;
 
-                    // 12 Upsert del Beneficiario por Folio
-                    Beneficiario::updateOrCreate(
-                        ['folio' => $folioLimpio],
-                        [
+                    // 12 Beneficiario por folio (se acumula en el lote; si el folio se repite
+                    //    en el archivo, gana la última fila, igual que antes)
+                    $lote[$folioLimpio] = [
+                            'folio'                        => $folioLimpio,
                             'curp'                         => $curp,
                             'nombre'                       => $nombre,
                             'primer_apellido'              => $primerApellido,
                             'segundo_apellido'             => $segundoApellido,
-                            'grupo_id'                     => $grupo->id,
+                            'grupo_id'                     => $grupoId,
                             'tot_asistencias'              => $totAsistencias,
                             'porc_avance'                  => $porcAvanceFinal,
                             'estatus'                      => $estatusFinal,
@@ -277,11 +304,12 @@ class ImportacionController extends Controller
                             'fecha_termino'                => $fechaTermino,
                             'respuesta_aprendizajes_cambio' => $respAprendizaje,
                             'observaciones'                => $observaciones,
-                        ]
-                    );
+                    ];
 
                     $contadorRegistros++;
+                    if (count($lote) >= $tamanoLote) $guardarLote();
                 }
+                $guardarLote();
             }
             fclose($handle);
         }
