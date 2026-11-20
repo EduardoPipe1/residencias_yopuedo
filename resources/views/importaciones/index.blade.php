@@ -33,7 +33,8 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8 max-w-2xl">
         <h2 class="text-base font-semibold text-[#002F6C] mb-4">Seleccionar archivo de datos</h2>
         
-        <form action="{{ route('importaciones.store') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('importaciones.store') }}" method="POST" enctype="multipart/form-data"
+              x-data="{ procesando: false }" @submit="procesando = true">
             @csrf
             <div class="mb-5">
                 <label for="archivo" class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
@@ -45,9 +46,20 @@
                               file:bg-[#004F9F] file:text-white file:text-xs file:font-semibold file:uppercase hover:file:bg-[#003B77] file:cursor-pointer">
             </div>
 
-            <button type="submit" class="px-5 py-2.5 bg-[#004F9F] hover:bg-[#003B77] text-white text-xs font-bold uppercase rounded shadow transition">
-                Procesar e Insertar en Base de Datos
+            <button type="submit" :disabled="procesando"
+                    class="px-5 py-2.5 bg-[#004F9F] hover:bg-[#003B77] text-white text-xs font-bold uppercase rounded shadow transition disabled:opacity-60 disabled:cursor-wait">
+                <span x-show="!procesando">Procesar e Insertar en Base de Datos</span>
+                <span x-show="procesando" x-cloak>Procesando…</span>
             </button>
+
+            {{-- Aviso mientras se sube y procesa el archivo (no se debe cerrar la página) --}}
+            <div x-show="procesando" x-cloak class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-xl p-8 max-w-sm text-center">
+                    <div class="mx-auto mb-4 h-10 w-10 rounded-full border-4 border-blue-200 border-t-[#004F9F] animate-spin"></div>
+                    <p class="font-bold text-gray-900">Importando padrón…</p>
+                    <p class="text-sm text-gray-600 mt-1">Esto puede tardar unos minutos con archivos grandes. No cierres ni recargues esta página.</p>
+                </div>
+            </div>
         </form>
     </div>
 

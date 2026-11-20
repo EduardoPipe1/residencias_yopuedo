@@ -12,6 +12,20 @@ use Illuminate\Http\Request;
 
 class ReconocimientoController extends Controller
 {
+    /** Máximo de diplomas en un solo PDF. */
+    public const MAXIMO_POR_IMPRESION = 300;
+
+    /** Filtros de la impresión en texto legible, para la bitácora. */
+    public static function describirFiltros(Request $request): array
+    {
+        return [
+            'Región'   => $request->filled('region_id') ? (Region::find($request->region_id)->nombre ?? $request->region_id) : 'Todas',
+            'Promotor' => $request->filled('promotor_id') ? (Promotor::find($request->promotor_id)->nombre_completo ?? $request->promotor_id) : 'Todos',
+            'Grupo'    => $request->filled('grupo_id') ? (Grupo::find($request->grupo_id)->identificador_grupo ?? $request->grupo_id) : 'Todos',
+            'Estatus'  => $request->input('estatus') ?: 'Acreditado',
+        ];
+    }
+
     public function index(Request $request)
     {
         $grupos = Grupo::with('municipio')->orderBy('identificador_grupo')->get();
@@ -33,15 +47,14 @@ class ReconocimientoController extends Controller
                 ->with('warning', "No se encontró ningún beneficiario con el folio {$folio}.");
         }
 
-        if (class_exists(AuditoriaService::class)) {
-            AuditoriaService::registrar(
-                'beneficiarios',
-                $beneficiario->id,
-                'emision_reconocimiento_individual'
-            );
-        }
-
         $beneficiario->loadMissing('grupo.municipio');
+
+        AuditoriaService::registrarImpresion(
+            'emision_reconocimiento_individual',
+            "Reconocimiento individual IDSE{$beneficiario->folio} - {$beneficiario->nombre} {$beneficiario->primer_apellido} {$beneficiario->segundo_apellido} (grupo " . ($beneficiario->grupo->identificador_grupo ?? '-') . ')',
+            ['folio' => 'IDSE' . $beneficiario->folio],
+            collect([$beneficiario])
+        );
 
         $pdf = Pdf::loadView('pdf.reconocimiento', compact('beneficiario'))
                   ->setPaper('letter', 'landscape');
@@ -71,23 +84,30 @@ class ReconocimientoController extends Controller
             $query->where('estatus', 'Acreditado');
         }
 
+        // Límite por impresión: un PDF con miles de diplomas agota la memoria del servidor y
+        // tampoco es práctico de mandar a la impresora. Se pide afinar el filtro.
+        $total = (clone $query)->count();
+        if ($total > self::MAXIMO_POR_IMPRESION) {
+            return redirect()->route('reconocimientos.index')->with('warning', 'Tu selección tiene ' . number_format($total) . ' reconocimientos. '
+                . 'Se pueden imprimir hasta ' . self::MAXIMO_POR_IMPRESION . ' a la vez: elige un promotor o un grupo para dividir la impresión.');
+        }
+
         $beneficiarios = $query->orderBy('primer_apellido', 'asc')
                                ->orderBy('segundo_apellido', 'asc')
                                ->get();
 
         if ($beneficiarios->isEmpty()) {
-            return back()->with('warning', 'No se encontraron registros acreditados con los filtros seleccionados.');
+            return redirect()->route('reconocimientos.index')->with('warning', 'No se encontraron registros acreditados con los filtros seleccionados.');
         }
 
-        if (class_exists(AuditoriaService::class)) {
-            foreach ($beneficiarios as $beneficiario) {
-                AuditoriaService::registrar(
-                    'beneficiarios',
-                    $beneficiario->id,
-                    'emision_reconocimiento_masivo'
-                );
-            }
-        }
+        // Un solo ticket con los filtros usados y la lista exacta de diplomas impresos
+        $filtros = self::describirFiltros($request);
+        AuditoriaService::registrarImpresion(
+            'emision_reconocimiento_masivo',
+            "{$beneficiarios->count()} reconocimientos - " . implode(' | ', array_map(fn ($k, $v) => "{$k}: {$v}", array_keys($filtros), $filtros)),
+            $filtros,
+            $beneficiarios
+        );
 
         $pdf = Pdf::loadView('pdf.reconocimiento_masivo', compact('beneficiarios'))
                   ->setPaper('letter', 'landscape');

@@ -5,12 +5,22 @@ use App\Http\Controllers\IdseController;
 use App\Http\Controllers\FolioController;
 use App\Http\Controllers\ListaController;
 use App\Http\Controllers\AsignacionGrupoController;
+use App\Http\Controllers\AuditoriaController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReconocimientoController;
 use App\Http\Controllers\GrupoController;
 use App\Http\Controllers\PromotorController;
 use App\Http\Controllers\MunicipioController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\ImportacionController;
+
+// Inicio de sesión (única ruta pública)
+Route::get('/login', [AuthController::class, 'mostrarLogin'])->name('login')->middleware('guest');
+Route::post('/login', [AuthController::class, 'login'])->middleware(['guest', 'throttle:10,1']);
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
+// Todo el sistema requiere sesión iniciada
+Route::middleware('auth')->group(function () {
 
 Route::get('/', function () {
     return view('dashboard');
@@ -70,3 +80,11 @@ Route::resource('grupos', GrupoController::class);
 Route::resource('promotores', PromotorController::class);
 Route::resource('municipios', MunicipioController::class);
 Route::resource('regiones', RegionController::class);
+
+// Módulo BITÁCORA (comprobantes de cada movimiento)
+Route::prefix('auditoria')->controller(AuditoriaController::class)->name('auditoria.')->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/{ticket}/pdf', 'pdf')->name('pdf');
+});
+
+});

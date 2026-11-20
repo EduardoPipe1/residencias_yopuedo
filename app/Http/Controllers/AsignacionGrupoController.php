@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Grupo;
 use App\Models\Promotor;
 use App\Models\Region;
+use App\Services\AuditoriaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -29,10 +30,19 @@ class AsignacionGrupoController extends Controller
 
     public function pdf(Request $request)
     {
-        $request->validate(['region_id' => 'required|exists:regiones,id']);
+        if (!Region::whereKey($request->region_id)->exists()) {
+            return redirect()->route('asignaciones.index');
+        }
 
         $asignaciones = $this->asignaciones($request);
         $region = Region::find($request->region_id);
+
+        $filtros = ReconocimientoController::describirFiltros($request);
+        AuditoriaService::registrar('grupos', null, 'emision_asignacion_grupos', null, [
+            'filtros' => ['Región' => $filtros['Región'], 'Promotor' => $filtros['Promotor']],
+            'total'   => $asignaciones->count(),
+            'rangos'  => $asignaciones->map(fn ($f) => ['promotor' => $f['promotor'], 'gpo_inicial' => $f['gpo_inicial'], 'gpo_final' => $f['gpo_final']])->values()->all(),
+        ], "Asignación de grupos - {$filtros['Región']} - Promotor: {$filtros['Promotor']}");
 
         return Pdf::loadView('pdf.asignacion_grupos', compact('asignaciones', 'region'))
                   ->setPaper('letter', 'portrait')

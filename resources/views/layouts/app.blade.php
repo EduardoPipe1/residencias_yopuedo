@@ -46,11 +46,18 @@
                 </div>
             </div>
 
-            <!-- Distintivo de Gobierno de la Gente -->
-            <div class="hidden md:flex items-center">
-                <span class="text-[11px] bg-[#004F9F] border border-blue-400/30 text-white px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm">
+            <!-- Distintivo de Gobierno de la Gente + usuario en sesión -->
+            <div class="flex items-center gap-3">
+                <span class="hidden md:inline text-[11px] bg-[#004F9F] border border-blue-400/30 text-white px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm">
                     Gobierno de la Gente
                 </span>
+                @auth
+                    <span class="text-xs text-blue-100">{{ auth()->user()->name }}</span>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button class="text-[11px] font-bold uppercase tracking-wider border border-white/40 text-white px-3 py-1 rounded hover:bg-white/10 transition">Salir</button>
+                    </form>
+                @endauth
             </div>
         </div>
 
@@ -63,6 +70,7 @@
                         ['url' => '/idse',              'activo' => 'idse*',              'texto' => 'Padrón IDSE'],
                         ['url' => '/importaciones',     'activo' => 'importaciones*',     'texto' => 'Importación'],
                         ['url' => '/promotores-grupos', 'activo' => 'promotores-grupos*', 'texto' => 'Promotores y Grupos'],
+                        ['url' => '/auditoria',         'activo' => 'auditoria*',         'texto' => 'Bitácora'],
                     ];
                     // Documentos oficiales que se imprimen
                     $menuImpresion = [

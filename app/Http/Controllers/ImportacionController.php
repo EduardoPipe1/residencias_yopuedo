@@ -11,6 +11,7 @@ use App\Models\Grupo;
 use App\Models\Promotor;
 use App\Models\Municipio;
 use App\Models\Region;
+use App\Services\AuditoriaService;
 use App\Services\CatalogoService;
 
 class ImportacionController extends Controller
@@ -317,6 +318,14 @@ class ImportacionController extends Controller
         // Un promotor puede aparecer en varias filas/regiones: su región final es
         // la región donde tiene más grupos.
         $promotoresCorregidos = CatalogoService::sincronizarRegionesPromotores();
+
+        AuditoriaService::registrar('beneficiarios', null, 'importacion_padron', null, [
+            'archivo'               => $archivo->getClientOriginalName(),
+            'archivo_guardado'      => $nombre,
+            'registros_procesados'  => $contadorRegistros,
+            'promotores_corregidos' => $promotoresCorregidos,
+            'avisos'                => array_keys($avisos),
+        ], "Importación del archivo {$archivo->getClientOriginalName()}: " . number_format($contadorRegistros) . ' registros procesados');
 
         $respuesta = redirect()
             ->route('importaciones.index')

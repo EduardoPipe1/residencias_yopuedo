@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Beneficiario;
 use App\Models\Grupo;
 use App\Models\Region;
+use App\Services\AuditoriaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
@@ -15,6 +16,9 @@ use Illuminate\Http\Request;
  */
 class ListaController extends Controller
 {
+    /** Máximo de beneficiarios (renglones) en un solo PDF de listas. */
+    public const MAXIMO_POR_IMPRESION = 1500;
+
     public function index()
     {
         $regiones = Region::orderBy('id')->get();
@@ -28,10 +32,11 @@ class ListaController extends Controller
      */
     public function generar(Request $request)
     {
-        $request->validate(
-            ['region_id' => 'required|exists:regiones,id'],
-            ['region_id.required' => 'Selecciona una región para generar las listas.']
-        );
+        // Nota: se redirige siempre a la pantalla del módulo (no "atrás"): la página anterior
+        // puede ser un PDF recién impreso y se volvería a generar y registrar en la bitácora.
+        if (!Region::whereKey($request->region_id)->exists()) {
+            return redirect()->route('listas.index')->with('warning', 'Selecciona una región para generar las listas.');
+        }
 
         $query = Grupo::with(['municipio', 'promotor'])
             ->whereHas('municipio', fn ($q) => $q->where('region_id', $request->region_id));
@@ -43,6 +48,13 @@ class ListaController extends Controller
             $query->where('id', $request->grupo_id);
         }
 
+        // Límite por impresión (memoria del servidor y practicidad): se pide afinar el filtro
+        $total = \App\Models\Beneficiario::whereIn('grupo_id', (clone $query)->select('id'))->count();
+        if ($total > self::MAXIMO_POR_IMPRESION) {
+            return redirect()->route('listas.index')->with('warning', 'Tu selección tiene ' . number_format($total) . ' beneficiarios. '
+                . 'Se pueden imprimir hasta ' . number_format(self::MAXIMO_POR_IMPRESION) . ' a la vez: elige un promotor o un grupo para dividir la impresión.');
+        }
+
         $grupos = $query->whereHas('beneficiarios')
             ->with(['beneficiarios' => fn ($q) => $q->orderBy('primer_apellido')->orderBy('segundo_apellido')->orderBy('nombre')])
             ->get()
@@ -50,8 +62,19 @@ class ListaController extends Controller
             ->values();
 
         if ($grupos->isEmpty()) {
-            return back()->with('warning', 'No se encontraron grupos con beneficiarios para los filtros seleccionados.');
+            return redirect()->route('listas.index')->with('warning', 'No se encontraron grupos con beneficiarios para los filtros seleccionados.');
         }
+
+        $filtros = ReconocimientoController::describirFiltros($request);
+        unset($filtros['Estatus']);   // la lista incluye a todos: graduados y bajas
+        $beneficiarios = $grupos->flatMap(fn ($g) => $g->beneficiarios->each(fn ($b) => $b->setRelation('grupo', $g)));
+        AuditoriaService::registrarImpresion(
+            'emision_lista_reconocimientos',
+            "Lista de reconocimientos de {$grupos->count()} grupo(s): " . $grupos->pluck('identificador_grupo')->implode(', ')
+                . " ({$beneficiarios->count()} beneficiarios)",
+            $filtros,
+            $beneficiarios
+        );
 
         $pdf = Pdf::loadView('pdf.lista_reconocimientos', compact('grupos'))
                   ->setPaper('letter', 'portrait');
