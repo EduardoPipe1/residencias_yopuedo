@@ -56,6 +56,7 @@ class ImportacionController extends Controller
         $contadorRegistros = 0;
         $catalogo = new CatalogoService();
         $avisos = [];   // municipios/regiones que no se pudieron identificar
+        $gruposReasignados = [];   // grupos cuyo promotor cambió en este archivo
 
         // Si el municipio no se identifica, se usa el primero de la región (o el id 1) y se avisa.
         $cacheRespaldo = [];
@@ -281,13 +282,21 @@ class ImportacionController extends Controller
                     )->id;
 
                     // 11 Grupo Formativo
-                    $grupoId = $cacheGrupos[$grupoIdTexto] ??= Grupo::firstOrCreate(
-                        ['identificador_grupo' => $grupoIdTexto],
-                        [
-                            'promotor_id'  => $promotorId,
-                            'municipio_id' => $municipioId,
-                        ]
-                    )->id;
+                    //    La primera vez que aparece el grupo en el archivo se toma su promotor del CSV:
+                    //    si cambió (p. ej. el promotor anterior dejó de laborar y se reasignó el grupo),
+                    //    se actualiza. Las demás filas del mismo grupo usan la caché.
+                    if (!isset($cacheGrupos[$grupoIdTexto])) {
+                        $grupo = Grupo::firstOrCreate(
+                            ['identificador_grupo' => $grupoIdTexto],
+                            ['promotor_id' => $promotorId, 'municipio_id' => $municipioId]
+                        );
+                        if ((int) $grupo->promotor_id !== (int) $promotorId) {
+                            $gruposReasignados[] = "{$grupoIdTexto}: {$nombrePromotorReal}";
+                            $grupo->update(['promotor_id' => $promotorId]);
+                        }
+                        $cacheGrupos[$grupoIdTexto] = $grupo->id;
+                    }
+                    $grupoId = $cacheGrupos[$grupoIdTexto];
 
                     // 12 Beneficiario por folio (se acumula en el lote; si el folio se repite
                     //    en el archivo, gana la última fila, igual que antes)
@@ -324,13 +333,15 @@ class ImportacionController extends Controller
             'archivo_guardado'      => $nombre,
             'registros_procesados'  => $contadorRegistros,
             'promotores_corregidos' => $promotoresCorregidos,
+            'grupos_reasignados'    => $gruposReasignados,
             'avisos'                => array_keys($avisos),
         ], "Importación del archivo {$archivo->getClientOriginalName()}: " . number_format($contadorRegistros) . ' registros procesados');
 
         $respuesta = redirect()
             ->route('importaciones.index')
             ->with('success', "Padrón migrado con éxito. Se procesaron {$contadorRegistros} registros aplicando reglas oficiales."
-                . ($promotoresCorregidos ? " Se ajustó la región de {$promotoresCorregidos} promotor(es)." : ''));
+                . ($promotoresCorregidos ? " Se ajustó la región de {$promotoresCorregidos} promotor(es)." : '')
+                . ($gruposReasignados ? ' ' . count($gruposReasignados) . ' grupo(s) cambiaron de promotor.' : ''));
 
         if ($avisos) {
             $lista = array_keys($avisos);

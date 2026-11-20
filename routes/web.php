@@ -29,8 +29,6 @@ Route::middleware('auth')->group(function () {
 // Módulo IDSE (Padrón, buscador con filtros y persistencia)
 Route::prefix('idse')->controller(IdseController::class)->name('idse.')->group(function () {
     Route::get('/', 'index')->name('index');               // Buscador con filtros
-    Route::get('/{beneficiario}', 'show')->name('show');   // Ficha individual
-    Route::put('/{beneficiario}', 'update')->name('update'); // Actualizar estatus y emitir auditoría
 });
 
 // Módulo FOLIOS (Solicitudes de registro en PDF)

@@ -79,6 +79,11 @@
         </table>
     @endif
 
+    @if(!empty($datos['grupos_reasignados']))
+        <h3>Grupos que cambiaron de promotor ({{ count($datos['grupos_reasignados']) }})</h3>
+        <ul>@foreach($datos['grupos_reasignados'] as $g)<li>Grupo {{ $g }}</li>@endforeach</ul>
+    @endif
+
     @if(!empty($datos['avisos']))
         <h3>Avisos de la importación</h3>
         <ul>@foreach($datos['avisos'] as $a)<li>{{ $a }}</li>@endforeach</ul>
