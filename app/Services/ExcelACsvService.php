@@ -3,6 +3,10 @@
 namespace App\Services;
 
 use DateTimeInterface;
+use OpenSpout\Reader\XLSX\Manager\SharedStringsCaching\CachingStrategyFactoryInterface;
+use OpenSpout\Reader\XLSX\Manager\SharedStringsCaching\CachingStrategyInterface;
+use OpenSpout\Reader\XLSX\Manager\SharedStringsCaching\FileBasedStrategy;
+use OpenSpout\Reader\XLSX\Manager\SharedStringsCaching\InMemoryStrategy;
 use OpenSpout\Reader\XLSX\Reader;
 use RuntimeException;
 
@@ -21,7 +25,19 @@ class ExcelACsvService
     /** Devuelve [ruta del CSV temporal, nombre de la hoja usada]. */
     public static function convertir(string $rutaXlsx): array
     {
-        $reader = new Reader();
+        // Excel guarda los textos (nombres, CURP, direcciones...) en una tabla aparte. OpenSpout estima
+        // 12 KB por texto y, con los ~570 mil textos del padrón, cree que no caben en memoria y los
+        // manda a decenas de archivos temporales que relee del disco por cada celda (la importación
+        // no termina). En realidad ocupan ~100 bytes cada uno (~60 MB en total): se guardan en memoria.
+        $textosEnMemoria = new class implements CachingStrategyFactoryInterface {
+            public function createBestCachingStrategy(?int $sharedStringsUniqueCount, string $tempFolder): CachingStrategyInterface
+            {
+                return $sharedStringsUniqueCount !== null
+                    ? new InMemoryStrategy($sharedStringsUniqueCount)
+                    : new FileBasedStrategy($tempFolder, 10000);
+            }
+        };
+        $reader = new Reader(null, $textosEnMemoria);
         $reader->open($rutaXlsx);
 
         try {
