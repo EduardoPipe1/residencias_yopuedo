@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\IdseController;
 use App\Http\Controllers\FolioController;
 use App\Http\Controllers\ListaController;
+use App\Http\Controllers\AsignacionGrupoController;
 use App\Http\Controllers\ReconocimientoController;
 use App\Http\Controllers\GrupoController;
 use App\Http\Controllers\PromotorController;
@@ -29,11 +30,16 @@ Route::prefix('folios')->controller(FolioController::class)->name('folios.')->gr
     Route::post('/imprimir-masivo', 'imprimirMasivo')->name('imprimir.masivo');
 });
 
-// Módulo LISTAS (Listas de asistencia oficiales con espacio para firmas)
+// Módulo LISTAS (Lista de reconocimientos oficial: acta de entrega por grupo)
 Route::prefix('listas')->controller(ListaController::class)->name('listas.')->group(function () {
     Route::get('/', 'index')->name('index');
-    Route::get('/grupo/{grupo}/pdf', 'generarPdfGrupo')->name('pdf.grupo'); // Descarga directa del PDF por grupo
-    Route::post('/generar', 'generar')->name('generar');
+    Route::get('/generar', 'generar')->name('generar');
+});
+
+// Módulo PROMOTORES Y GRUPOS (consulta de asignación de grupos por promotor)
+Route::prefix('promotores-grupos')->controller(AsignacionGrupoController::class)->name('asignaciones.')->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/pdf', 'pdf')->name('pdf');
 });
 
 // Módulo RECONOCIMIENTOS (Diplomas institucionales)

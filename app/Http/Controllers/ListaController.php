@@ -4,104 +4,62 @@ namespace App\Http\Controllers;
 
 use App\Models\Beneficiario;
 use App\Models\Grupo;
+use App\Models\Region;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
+/**
+ * Módulo LISTAS: "Lista de reconocimientos" oficial (formato LISTA (1).pdf).
+ * Acta de entrega por grupo con todos sus beneficiarios (graduados y bajas) y
+ * casillas para firma y fecha de entrega del reconocimiento.
+ */
 class ListaController extends Controller
 {
-    /**
-     * Muestra la vista de configuración y filtros para generar listas de asistencia.
-     */
-    public function index(Request $request)
+    public function index()
     {
-        $grupos = Grupo::with('municipio')->orderBy('identificador_grupo')->get();
+        $regiones = Region::orderBy('id')->get();
 
-        return view('listas.index', compact('grupos'));
+        return view('listas.index', compact('regiones'));
     }
 
     /**
-     * Genera la lista de asistencia en PDF filtrada dinámicamente con casillas de firma.
+     * Genera el PDF filtrando por región -> promotor -> grupo.
+     * Cada grupo se imprime en su propia hoja (o varias, si no cabe en una).
      */
     public function generar(Request $request)
     {
-        $query = Beneficiario::with(['grupo.municipio', 'grupo.promotor']);
+        $request->validate(
+            ['region_id' => 'required|exists:regiones,id'],
+            ['region_id.required' => 'Selecciona una región para generar las listas.']
+        );
 
-        if ($request->filled('curp')) {
-            $query->where('curp', 'like', '%' . $request->curp . '%');
-        }
-
-        if ($request->filled('nombre')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('nombre', 'like', '%' . $request->nombre . '%')
-                  ->orWhere('primer_apellido', 'like', '%' . $request->nombre . '%')
-                  ->orWhere('segundo_apellido', 'like', '%' . $request->nombre . '%');
-            });
-        }
-
-        if ($request->filled('folio_inicio') && $request->filled('folio_fin')) {
-            $query->whereBetween('folio', [$request->folio_inicio, $request->folio_fin]);
-        }
-
-        if ($request->filled('grupo_id')) {
-            $query->where('grupo_id', $request->grupo_id);
-        }
+        $query = Grupo::with(['municipio', 'promotor'])
+            ->whereHas('municipio', fn ($q) => $q->where('region_id', $request->region_id));
 
         if ($request->filled('promotor_id')) {
-            $query->whereHas('grupo', function ($q) use ($request) {
-                $q->where('promotor_id', $request->promotor_id);
-            });
+            $query->where('promotor_id', $request->promotor_id);
+        }
+        if ($request->filled('grupo_id')) {
+            $query->where('id', $request->grupo_id);
         }
 
-        // Clasificación por estatus formativo
-        if ($request->filled('clasificacion')) {
-            if ($request->clasificacion === 'graduados') {
-                $query->where(function ($q) {
-                    $q->where('estatus', 'Acreditado')
-                      ->orWhere('porc_avance', '>=', 100);
-                });
-            } elseif ($request->clasificacion === 'pendientes') {
-                $query->where(function ($q) {
-                    $q->where('estatus', '!=', 'Acreditado')
-                      ->orWhere('porc_avance', '<', 100);
-                });
-            }
+        $grupos = $query->whereHas('beneficiarios')
+            ->with(['beneficiarios' => fn ($q) => $q->orderBy('primer_apellido')->orderBy('segundo_apellido')->orderBy('nombre')])
+            ->get()
+            ->sortBy(fn ($g) => [(int) $g->identificador_grupo, $g->identificador_grupo])
+            ->values();
+
+        if ($grupos->isEmpty()) {
+            return back()->with('warning', 'No se encontraron grupos con beneficiarios para los filtros seleccionados.');
         }
 
-        $beneficiarios = $query->orderBy('primer_apellido', 'asc')
-                               ->orderBy('segundo_apellido', 'asc')
-                               ->get();
+        $pdf = Pdf::loadView('pdf.lista_reconocimientos', compact('grupos'))
+                  ->setPaper('letter', 'portrait');
 
-        if ($beneficiarios->isEmpty()) {
-            return back()->with('warning', 'No se encontraron beneficiarios con los criterios especificados.');
-        }
+        $nombre = $grupos->count() === 1
+            ? "Lista_Reconocimientos_Grupo_{$grupos->first()->identificador_grupo}.pdf"
+            : 'Listas_Reconocimientos_' . now()->format('Ymd_His') . '.pdf';
 
-        // Obtener el contexto del grupo seleccionado si aplica
-        $grupo = $request->filled('grupo_id') 
-            ? Grupo::with(['municipio', 'promotor'])->find($request->grupo_id)
-            : $beneficiarios->first()->grupo;
-
-        // Inyectar la colección filtrada al objeto grupo para el renderizado
-        $grupo->setRelation('beneficiarios', $beneficiarios);
-
-        $pdf = Pdf::loadView('pdf.lista_asistencia', compact('grupo'))
-                  ->setPaper('letter', 'landscape');
-
-        return $pdf->stream('Lista_Asistencia_' . now()->format('Ymd_His') . '.pdf');
-    }
-
-    /**
-     * Descarga directa de la lista oficial de un grupo específico por URL.
-     */
-    public function generarPdfGrupo(Grupo $grupo)
-    {
-        $grupo->load(['municipio', 'promotor', 'beneficiarios' => function ($q) {
-            $q->orderBy('primer_apellido', 'asc')
-              ->orderBy('segundo_apellido', 'asc');
-        }]);
-
-        $pdf = Pdf::loadView('pdf.lista_asistencia', compact('grupo'))
-                  ->setPaper('letter', 'landscape');
-
-        return $pdf->stream("Lista_Asistencia_Grupo_{$grupo->identificador_grupo}.pdf");
+        return $pdf->stream($nombre);
     }
 }

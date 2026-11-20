@@ -57,43 +57,38 @@
         <!-- Fila Inferior: Barra de Navegacion de Modulos -->
         <div class="bg-[#002454] border-t border-[#004F9F]/60">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <nav class="flex items-center space-x-1 py-1.5 overflow-x-auto whitespace-nowrap text-xs font-bold uppercase tracking-wider scrollbar-none">
-                    <a href="{{ url('/idse') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('idse*') ? 'bg-[#004F9F] text-white shadow-sm' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Padrón IDSE
-                    </a>
-                    <a href="{{ url('/importaciones') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('importaciones*') ? 'bg-[#004F9F] text-white shadow-sm' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Importación
-                    </a>
-                    <a href="{{ url('/folios') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('folios*') ? 'bg-[#004F9F] text-white shadow-sm' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Folios
-                    </a>
-                    <a href="{{ url('/grupos') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('grupos*') ? 'bg-[#004F9F] text-white shadow-sm' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Grupos
-                    </a>
-                    <a href="{{ url('/promotores') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('promotores*') ? 'bg-[#004F9F] text-white shadow-sm' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Promotores
-                    </a>
-                    <a href="{{ url('/municipios') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('municipios*') ? 'bg-[#004F9F] text-white shadow-inner' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Municipios
-                    </a>
-                    <a href="{{ url('/regiones') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('regiones*') ? 'bg-[#004F9F] text-white shadow-inner' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Regiones
-                    </a>
-                    <a href="{{ url('/listas') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('listas*') ? 'bg-[#004F9F] text-white shadow-inner' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Listas
-                    </a>
-                    <a href="{{ url('/reconocimientos') }}" 
-                       class="px-3 py-1.5 rounded transition {{ request()->is('reconocimientos*') ? 'bg-[#004F9F] text-white shadow-inner' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
-                        Reconocimientos
-                    </a>
+                @php
+                    // Consulta y carga de información
+                    $menuConsulta = [
+                        ['url' => '/idse',              'activo' => 'idse*',              'texto' => 'Padrón IDSE'],
+                        ['url' => '/importaciones',     'activo' => 'importaciones*',     'texto' => 'Importación'],
+                        ['url' => '/promotores-grupos', 'activo' => 'promotores-grupos*', 'texto' => 'Promotores y Grupos'],
+                    ];
+                    // Documentos oficiales que se imprimen
+                    $menuImpresion = [
+                        ['url' => '/folios',          'activo' => 'folios*',          'texto' => 'Solicitudes'],
+                        ['url' => '/listas',          'activo' => 'listas*',          'texto' => 'Listas'],
+                        ['url' => '/reconocimientos', 'activo' => 'reconocimientos*', 'texto' => 'Reconocimientos'],
+                    ];
+                @endphp
+                <nav class="flex items-center gap-1 py-1.5 overflow-x-auto whitespace-nowrap text-xs font-bold uppercase tracking-wider scrollbar-none">
+                    @foreach($menuConsulta as $item)
+                        <a href="{{ url($item['url']) }}"
+                           class="px-3 py-1.5 rounded transition {{ request()->is($item['activo']) ? 'bg-[#004F9F] text-white shadow-sm' : 'text-blue-200 hover:bg-[#003B77] hover:text-white' }}">
+                            {{ $item['texto'] }}
+                        </a>
+                    @endforeach
+
+                    {{-- Separador entre consulta e impresión --}}
+                    <span class="mx-2 h-5 w-px bg-blue-300/40 shrink-0"></span>
+                    <span class="text-[10px] text-blue-300/80 mr-1 shrink-0">Impresión</span>
+
+                    @foreach($menuImpresion as $item)
+                        <a href="{{ url($item['url']) }}"
+                           class="px-3 py-1.5 rounded border transition {{ request()->is($item['activo']) ? 'bg-emerald-600 border-emerald-400 text-white shadow-sm' : 'border-emerald-500/50 text-emerald-200 hover:bg-emerald-700 hover:text-white' }}">
+                            {{ $item['texto'] }}
+                        </a>
+                    @endforeach
                 </nav>
             </div>
         </div>
