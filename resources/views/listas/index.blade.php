@@ -63,7 +63,6 @@
 @endif
 
 <script>
-    // Reutiliza los mismos endpoints de los selects dependientes del módulo de reconocimientos
     document.addEventListener('alpine:init', () => {
         Alpine.data('listasApp', () => ({
             regionSeleccionada: '', promotorSeleccionado: '', grupoSeleccionado: '',

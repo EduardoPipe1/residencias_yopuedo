@@ -6,7 +6,6 @@ use App\Services\AuditoriaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-/** Inicio y cierre de sesión del usuario del sistema. */
 class AuthController extends Controller
 {
     public function mostrarLogin()

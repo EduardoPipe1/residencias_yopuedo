@@ -1,6 +1,3 @@
-{{-- Estilos compartidos por el reconocimiento individual y el masivo.
-     Formato: RECONOCIMIENTO SENCO (hoja carta horizontal preimpresa, 792 x 612 pt).
-     Tamaños tomados de la plantilla Word: nombre 24 pt, lugar y fecha 20 pt, grupo/folio en negritas. --}}
 <style>
     @page { margin: 0cm; size: letter landscape; }
     body { font-family: 'Helvetica', 'Arial', sans-serif; color: #000000; margin: 0; padding: 0; }

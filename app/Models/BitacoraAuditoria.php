@@ -8,7 +8,6 @@ class BitacoraAuditoria extends Model
 {
     protected $table = 'bitacora_auditoria';
 
-    // Desactiva únicamente updated_at conservando created_at de forma automática
     const UPDATED_AT = null;
 
     protected $fillable = [
@@ -22,8 +21,6 @@ class BitacoraAuditoria extends Model
         'datos_nuevos',
     ];
 
-    // Los JSON se guardan como texto con acentos legibles (JSON_UNESCAPED_UNICODE) para que el
-    // buscador encuentre nombres; por eso se decodifican aquí en lugar de usar el cast 'array'.
     protected $casts = ['created_at' => 'datetime'];
 
     public function nuevos(): array

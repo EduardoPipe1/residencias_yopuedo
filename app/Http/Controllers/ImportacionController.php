@@ -34,10 +34,9 @@ class ImportacionController extends Controller
         return view('importaciones.index', compact('archivos'));
     }
 
+    // importar el padron desde excel o csv
     public function store(Request $request)
     {
-        // Sin límite de tiempo: el padrón crece en cada carga (+60 mil folios).
-        // La velocidad se resuelve abajo con lotes y transacciones.
         set_time_limit(0);
         ini_set('memory_limit', '512M');
 
@@ -55,9 +54,9 @@ class ImportacionController extends Controller
         $ruta = $archivo->storeAs($this->carpeta, $nombre, $this->disco);
         $pathReal = Storage::disk($this->disco)->path($ruta);
 
-        // Excel (.xlsx): se convierte a CSV temporal y sigue el mismo proceso
         $hojaExcel = null;
         $csvTemporal = null;
+        // si es excel se pasa a csv
         if (strtolower($archivo->getClientOriginalExtension()) === 'xlsx') {
             try {
                 [$csvTemporal, $hojaExcel] = ExcelACsvService::convertir($pathReal);
@@ -70,10 +69,9 @@ class ImportacionController extends Controller
 
         $contadorRegistros = 0;
         $catalogo = new CatalogoService();
-        $avisos = [];   // municipios/regiones que no se pudieron identificar
-        $gruposReasignados = [];   // grupos cuyo promotor cambió en este archivo
+        $avisos = [];
+        $gruposReasignados = [];
 
-        // Si el municipio no se identifica, se usa el primero de la región (o el id 1) y se avisa.
         $cacheRespaldo = [];
         $municipioRespaldo = function (?int $regionId) use (&$cacheRespaldo) {
             $clave = $regionId ?? 0;
@@ -85,34 +83,27 @@ class ImportacionController extends Controller
         };
 
         if (($handle = fopen($pathReal, "r")) !== false) {
-            // El archivo se acepta tal como lo exporta Excel, sin editarlo:
-            //  - Separador "," o ";" (Excel en español suele usar ";")
-            //  - Codificación UTF-8 (con o sin BOM) o ANSI/Windows-1252 ("CSV delimitado por comas")
             $muestra   = (string) fgets($handle);
             $separador = substr_count($muestra, ';') > substr_count($muestra, ',') ? ';' : ',';
             $esUtf8    = mb_check_encoding(file_get_contents($pathReal, false, null, 0, 2_000_000), 'UTF-8');
             rewind($handle);
 
             $leerFila = function () use ($handle, $separador, $esUtf8) {
-                $fila = fgetcsv($handle, 0, $separador);   // 0 = sin límite de longitud por línea
+                $fila = fgetcsv($handle, 0, $separador);
                 if ($fila === false) return false;
                 return $esUtf8 ? $fila : array_map(fn ($v) => mb_convert_encoding((string) $v, 'UTF-8', 'Windows-1252'), $fila);
             };
 
-            // Lectura de la primera fila con encabezados
             $cabecerasRaw = $leerFila();
             
-            // Limpieza de espacios, comillas y caracteres ocultos 
             $cabeceras = array_map(function($h) {
                 return trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $h));
             }, $cabecerasRaw ?: []);
 
             $col = array_flip($cabeceras);
 
-            // Detección del tipo de archivo
             $esArchivoGrupos = isset($col['Coordinador_Promotor']) || isset($col['Gpo_Inicial']);
 
-            // Si no trae los encabezados del padrón, no es el archivo correcto: se avisa en vez de "importar 0"
             if (!$esArchivoGrupos && !isset($col['P_FolioBeneficiario']) && !isset($col['Folio'])) {
                 fclose($handle);
                 if ($csvTemporal) @unlink($csvTemporal);
@@ -122,7 +113,6 @@ class ImportacionController extends Controller
             }
 
             if ($esArchivoGrupos) {
-                // FASE 1: Archivo de Grupos y Promotores
                 while (($fila = $leerFila()) !== false) {
                     $gpoInicial = isset($col['Gpo_Inicial']) && isset($fila[$col['Gpo_Inicial']]) ? trim($fila[$col['Gpo_Inicial']]) : null;
                     if (empty($gpoInicial)) continue;
@@ -139,7 +129,6 @@ class ImportacionController extends Controller
                         $municipio = $municipioRespaldo($regionId);
                     }
                     $municipioId = $municipio['id'];
-                    // La región del municipio es la fuente de verdad
                     $regionId = $municipio['region_id'] ?? $regionId ?? 1;
 
                     $promotor = Promotor::firstOrCreate(
@@ -158,15 +147,11 @@ class ImportacionController extends Controller
                     $contadorRegistros++;
                 }
             } else {
-                // FASE 2: Padron IDSE
-                // Rendimiento: promotores y grupos se recuerdan en memoria (una consulta por
-                // promotor/grupo distinto, no por fila) y los beneficiarios se guardan en lotes
-                // de 1,000 con un solo INSERT ... ON DUPLICATE KEY UPDATE por lote, dentro de
-                // una transacción. Si algo falla, sólo se pierde el lote en curso.
-                $cachePromotores = [];   // nombre => id
-                $cacheGrupos = [];       // identificador => id
-                $lote = [];              // folio => datos del beneficiario
+                $cachePromotores = [];
+                $cacheGrupos = [];
+                $lote = [];
                 $tamanoLote = 1000;
+                // guarda los beneficiarios de 1000 en 1000
                 $guardarLote = function () use (&$lote) {
                     if (!$lote) return;
                     DB::transaction(function () use ($lote) {
@@ -181,24 +166,21 @@ class ImportacionController extends Controller
 
                 while (($fila = $leerFila()) !== false) {
                     
-                    // 1 Extraccion de Folio buscando por encabezado
                     $rawFolio = null;
                     if (isset($col['P_FolioBeneficiario']) && isset($fila[$col['P_FolioBeneficiario']])) {
                         $rawFolio = $fila[$col['P_FolioBeneficiario']];
                     } elseif (isset($col['Folio']) && isset($fila[$col['Folio']])) {
                         $rawFolio = $fila[$col['Folio']];
                     } elseif (isset($fila[2]) && !empty(trim($fila[2]))) {
-                        $rawFolio = $fila[2]; // Columna C
+                        $rawFolio = $fila[2];
                     }
 
                     $folioLimpio = trim(str_ireplace('IDSE', '', (string)$rawFolio));
                     
-                    // Si no hay folio en esta fila, se omite (para evitar filas en blanco)
                     if (empty($folioLimpio)) {
                         continue;
                     }
 
-                    // 2 CURP 
                     $curp = null;
                     if (isset($col['P_CURP']) && isset($fila[$col['P_CURP']])) {
                         $curp = trim($fila[$col['P_CURP']]);
@@ -209,7 +191,6 @@ class ImportacionController extends Controller
                         $curp = 'SP_' . $folioLimpio;
                     }
 
-                    // 3 Nombres y Apellidos
                     $nombre = isset($col['P_Nombre']) && isset($fila[$col['P_Nombre']]) 
                         ? trim($fila[$col['P_Nombre']]) 
                         : (isset($col['Nombre']) && isset($fila[$col['Nombre']]) ? trim($fila[$col['Nombre']]) : '');
@@ -222,7 +203,6 @@ class ImportacionController extends Controller
                         ? trim($fila[$col['P_SegundoApellido']]) 
                         : null;
 
-                    // 4 Grupo y Municipio
                     $grupoIdTexto = isset($col['G_IdentificadorGrupo']) && isset($fila[$col['G_IdentificadorGrupo']]) 
                         ? trim($fila[$col['G_IdentificadorGrupo']]) 
                         : (isset($col['Grupo']) && isset($fila[$col['Grupo']]) ? trim($fila[$col['Grupo']]) : '7171');
@@ -231,7 +211,6 @@ class ImportacionController extends Controller
                         ? trim($fila[$col['G_Municipio']]) 
                         : (isset($col['P_Municipio']) && isset($fila[$col['P_Municipio']]) ? trim($fila[$col['P_Municipio']]) : '');
 
-                    // 5 Año y Textos complementarios
                     $anioPadron = isset($col['AnioDePadron']) && isset($fila[$col['AnioDePadron']]) && is_numeric(trim($fila[$col['AnioDePadron']])) 
                         ? (int)trim($fila[$col['AnioDePadron']]) 
                         : 2026;
@@ -244,7 +223,6 @@ class ImportacionController extends Controller
                         ? trim($fila[$col['Observaciones']]) 
                         : null;
 
-                    // 6 Acreditado / No Acreditado y 100% / 0%
                     $rawEstatus = isset($col['Estatus']) && isset($fila[$col['Estatus']]) ? trim($fila[$col['Estatus']]) : '';
                     $rawAvance  = isset($col['PorcAvance']) && isset($fila[$col['PorcAvance']]) ? str_replace('%', '', trim($fila[$col['PorcAvance']])) : '0';
                     $avanceNum  = (float)$rawAvance;
@@ -261,7 +239,6 @@ class ImportacionController extends Controller
                         ? (int)trim($fila[$col['TotAsistencias']]) 
                         : ($esAcreditado ? 10 : 0);
 
-                    // 7 Fecha de Término
                     $rawFecha = isset($col['FechaTermino']) && isset($fila[$col['FechaTermino']]) ? trim($fila[$col['FechaTermino']]) : '';
                     $fechaTermino = null;
 
@@ -278,12 +255,9 @@ class ImportacionController extends Controller
                         }
                     }
 
-                    // 8 Región oficial: la columna G_IdZona (1-7). Antes se tomaba el 5.º dígito
-                    //   del folio, pero eso es el año (IDSE2023... => "3"), no la región.
                     $rawZona  = isset($col['G_IdZona']) && isset($fila[$col['G_IdZona']]) ? trim($fila[$col['G_IdZona']]) : '';
                     $regionId = is_numeric($rawZona) && (int)$rawZona >= 1 && (int)$rawZona <= 7 ? (int)$rawZona : null;
 
-                    // 9 Municipio (se busca primero dentro de la región indicada)
                     $municipio = $catalogo->municipio($muniTexto, $regionId);
                     if (!$municipio) {
                         $avisos["Municipio no identificado: '{$muniTexto}'"] = true;
@@ -292,10 +266,8 @@ class ImportacionController extends Controller
                         $avisos["'{$muniTexto}' pertenece a la región {$municipio['region_id']} en el catálogo, pero el CSV dice zona {$regionId}"] = true;
                     }
                     $municipioId = $municipio['id'];
-                    // La región del municipio manda; G_IdZona sólo si no hay municipio identificado
                     $regionId = $municipio['region_id'] ?? $regionId ?? 1;
 
-                    // 10 Promotor Real
                     $nombrePromotorReal = isset($col['G_NomPromotor']) && isset($fila[$col['G_NomPromotor']]) && !empty(trim($fila[$col['G_NomPromotor']])) 
                         ? trim($fila[$col['G_NomPromotor']]) 
                         : 'COORDINACIÓN REGIONAL ' . $regionId;
@@ -305,10 +277,6 @@ class ImportacionController extends Controller
                         ['region_id' => $regionId, 'estatus' => 'Activo']
                     )->id;
 
-                    // 11 Grupo Formativo
-                    //    La primera vez que aparece el grupo en el archivo se toma su promotor del CSV:
-                    //    si cambió (p. ej. el promotor anterior dejó de laborar y se reasignó el grupo),
-                    //    se actualiza. Las demás filas del mismo grupo usan la caché.
                     if (!isset($cacheGrupos[$grupoIdTexto])) {
                         $grupo = Grupo::firstOrCreate(
                             ['identificador_grupo' => $grupoIdTexto],
@@ -322,8 +290,6 @@ class ImportacionController extends Controller
                     }
                     $grupoId = $cacheGrupos[$grupoIdTexto];
 
-                    // 12 Beneficiario por folio (se acumula en el lote; si el folio se repite
-                    //    en el archivo, gana la última fila, igual que antes)
                     $lote[$folioLimpio] = [
                             'folio'                        => $folioLimpio,
                             'curp'                         => $curp,
@@ -351,8 +317,7 @@ class ImportacionController extends Controller
             @unlink($csvTemporal);
         }
 
-        // Un promotor puede aparecer en varias filas/regiones: su región final es
-        // la región donde tiene más grupos.
+        // region de cada promotor segun sus grupos
         $promotoresCorregidos = CatalogoService::sincronizarRegionesPromotores();
 
         AuditoriaService::registrar('beneficiarios', null, 'importacion_padron', null, [

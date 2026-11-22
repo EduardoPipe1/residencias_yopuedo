@@ -9,14 +9,8 @@ use App\Services\AuditoriaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
-/**
- * Módulo LISTAS: "Lista de reconocimientos" oficial (formato LISTA (1).pdf).
- * Acta de entrega por grupo con todos sus beneficiarios (graduados y bajas) y
- * casillas para firma y fecha de entrega del reconocimiento.
- */
 class ListaController extends Controller
 {
-    /** Máximo de beneficiarios (renglones) en un solo PDF de listas. */
     public const MAXIMO_POR_IMPRESION = 1500;
 
     public function index()
@@ -26,14 +20,9 @@ class ListaController extends Controller
         return view('listas.index', compact('regiones'));
     }
 
-    /**
-     * Genera el PDF filtrando por región -> promotor -> grupo.
-     * Cada grupo se imprime en su propia hoja (o varias, si no cabe en una).
-     */
+    // lista de reconocimientos, una hoja por grupo
     public function generar(Request $request)
     {
-        // Nota: se redirige siempre a la pantalla del módulo (no "atrás"): la página anterior
-        // puede ser un PDF recién impreso y se volvería a generar y registrar en la bitácora.
         if (!Region::whereKey($request->region_id)->exists()) {
             return redirect()->route('listas.index')->with('warning', 'Selecciona una región para generar las listas.');
         }
@@ -48,7 +37,6 @@ class ListaController extends Controller
             $query->where('id', $request->grupo_id);
         }
 
-        // Límite por impresión (memoria del servidor y practicidad): se pide afinar el filtro
         $total = \App\Models\Beneficiario::whereIn('grupo_id', (clone $query)->select('id'))->count();
         if ($total > self::MAXIMO_POR_IMPRESION) {
             return redirect()->route('listas.index')->with('warning', 'Tu selección tiene ' . number_format($total) . ' beneficiarios. '
@@ -66,7 +54,7 @@ class ListaController extends Controller
         }
 
         $filtros = ReconocimientoController::describirFiltros($request);
-        unset($filtros['Estatus']);   // la lista incluye a todos: graduados y bajas
+        unset($filtros['Estatus']);
         $beneficiarios = $grupos->flatMap(fn ($g) => $g->beneficiarios->each(fn ($b) => $b->setRelation('grupo', $g)));
         AuditoriaService::registrarImpresion(
             'emision_lista_reconocimientos',

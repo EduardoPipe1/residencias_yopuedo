@@ -12,10 +12,9 @@ use Illuminate\Http\Request;
 
 class ReconocimientoController extends Controller
 {
-    /** Máximo de diplomas en un solo PDF. */
+    // maximo de reconocimientos por pdf
     public const MAXIMO_POR_IMPRESION = 300;
 
-    /** Filtros de la impresión en texto legible, para la bitácora. */
     public static function describirFiltros(Request $request): array
     {
         return [
@@ -37,8 +36,6 @@ class ReconocimientoController extends Controller
 
     public function individual($folio)
     {
-        // En BD el folio se guarda sin el prefijo "IDSE" (el importador lo quita),
-        // pero el usuario lo escribe como aparece en el padrón: IDSE202313633.
         $folioLimpio = trim(str_ireplace('IDSE', '', $folio));
         $beneficiario = Beneficiario::where('folio', $folioLimpio)->first();
 
@@ -62,6 +59,7 @@ class ReconocimientoController extends Controller
         return $pdf->stream("Reconocimiento_{$beneficiario->folio}.pdf");
     }
 
+    // impresion masiva, solo acreditados
     public function masivo(Request $request)
     {
         $query = Beneficiario::with('grupo.promotor', 'grupo.municipio.region');
@@ -78,11 +76,8 @@ class ReconocimientoController extends Controller
             $query->whereHas('grupo.municipio', fn($q) => $q->where('region_id', $request->region_id));
         }
 
-        // Los reconocimientos se emiten únicamente a beneficiarios acreditados
         $query->where('estatus', 'Acreditado');
 
-        // Límite por impresión: un PDF con miles de diplomas agota la memoria del servidor y
-        // tampoco es práctico de mandar a la impresora. Se pide afinar el filtro.
         $total = (clone $query)->count();
         if ($total > self::MAXIMO_POR_IMPRESION) {
             return redirect()->route('reconocimientos.index')->with('warning', 'Tu selección tiene ' . number_format($total) . ' reconocimientos. '
@@ -97,7 +92,6 @@ class ReconocimientoController extends Controller
             return redirect()->route('reconocimientos.index')->with('warning', 'No se encontraron registros acreditados con los filtros seleccionados.');
         }
 
-        // Un solo ticket con los filtros usados y la lista exacta de diplomas impresos
         $filtros = self::describirFiltros($request);
         AuditoriaService::registrarImpresion(
             'emision_reconocimiento_masivo',
@@ -112,17 +106,10 @@ class ReconocimientoController extends Controller
         return $pdf->stream('Reconocimientos_Masivos_' . now()->format('Ymd_His') . '.pdf');
     }
 
-    // ==============================================================================
-    // ENDPOINTS API PARA LOS SELECTS DEPENDIENTES
-    // ==============================================================================
-
     public function obtenerPromotoresPorRegion($regionId)
     {
         $regionId = (int) $regionId;
 
-        // Un promotor pertenece a la región si así está registrado O si tiene
-        // grupos en municipios de esa región (el importador puede dejar region_id
-        // desfasado cuando un mismo promotor aparece en varias regiones).
         $promotores = Promotor::where('region_id', $regionId)
                               ->orWhereHas('grupos.municipio', fn($q) => $q->where('region_id', $regionId))
                               ->orderBy('nombre_completo', 'asc')

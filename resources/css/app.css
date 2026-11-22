@@ -10,5 +10,4 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
-/* Oculta elementos de Alpine hasta que se inicializa (ventanas de detalle, avisos) */
 [x-cloak] { display: none !important; }

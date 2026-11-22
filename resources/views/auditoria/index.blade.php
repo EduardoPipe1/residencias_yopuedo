@@ -71,7 +71,6 @@
     </div>
     <div class="mt-4">{{ $movimientos->links() }}</div>
 
-    {{-- Ventana de detalle --}}
     <div x-show="detalle" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="detalle = null" @keydown.escape.window="detalle = null">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" x-show="detalle">
             <template x-if="detalle">

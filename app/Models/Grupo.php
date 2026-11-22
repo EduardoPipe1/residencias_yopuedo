@@ -19,10 +19,7 @@ class Grupo extends Model
     public function municipio() { return $this->belongsTo(Municipio::class); }
     public function beneficiarios() { return $this->hasMany(Beneficiario::class); }
 
-    /**
-     * Texto de lugar y fecha del reconocimiento, generado automáticamente a partir del
-     * municipio del grupo y la fecha de impresión. Ej.: "San Miguel de Allende, Gto., a Noviembre de 2026".
-     */
+    // lugar y fecha que sale en el reconocimiento
     public function lugarFechaReconocimiento(): string
     {
         $municipio = $this->municipio?->nombre_formal ?? 'Irapuato';

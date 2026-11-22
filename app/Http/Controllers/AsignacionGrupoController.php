@@ -10,13 +10,6 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
-/**
- * Módulo PROMOTORES Y GRUPOS (solo consulta).
- * Reproduce la tabla "Asignación de grupos" (Coordinador / Promotor | Gpo Inicial | Gpo Final):
- * los grupos se ordenan por número y se juntan en rangos mientras sean consecutivos y del
- * mismo promotor. Si entre los grupos de un promotor hay grupos de otro, esos aparecen en su
- * propia fila en medio, y el rango del primero se reanuda después.
- */
 class AsignacionGrupoController extends Controller
 {
     public function index(Request $request)
@@ -49,7 +42,6 @@ class AsignacionGrupoController extends Controller
                   ->stream('Asignacion_Grupos_' . now()->format('Ymd_His') . '.pdf');
     }
 
-    /** Promotores con grupos en la región (mismo criterio que los selects de reconocimientos). */
     private function promotoresDeRegion(int $regionId): Collection
     {
         return Promotor::where('region_id', $regionId)
@@ -58,11 +50,7 @@ class AsignacionGrupoController extends Controller
             ->get(['id', 'nombre_completo']);
     }
 
-    /**
-     * Devuelve filas [promotor, gpo_inicial, gpo_final, total] calculadas sobre TODOS los grupos
-     * de la región (para que los grupos de otros promotores corten los rangos). Si se eligió un
-     * promotor, se muestran sólo sus filas, pero con los cortes ya aplicados.
-     */
+    // junta grupos seguidos del mismo promotor
     private function asignaciones(Request $request): Collection
     {
         $grupos = Grupo::with('promotor:id,nombre_completo')

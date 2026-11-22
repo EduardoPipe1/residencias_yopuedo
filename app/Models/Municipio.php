@@ -11,10 +11,6 @@ class Municipio extends Model
     public function region() { return $this->belongsTo(Region::class); }
     public function grupos() { return $this->hasMany(Grupo::class); }
 
-    /**
-     * Nombre como se escribe en documentos oficiales:
-     * "SAN MIGUEL DE ALLENDE" => "San Miguel de Allende", "DOLORES HIDALGO CUNA DE LA INDEPENDENCIA NACIONAL" => "Dolores Hidalgo Cuna de la Independencia Nacional".
-     */
     public function getNombreFormalAttribute(): string
     {
         $menores = ['de', 'del', 'la', 'las', 'los', 'y', 'el'];

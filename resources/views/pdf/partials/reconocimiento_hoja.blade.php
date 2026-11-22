@@ -1,4 +1,3 @@
-{{-- Una hoja de reconocimiento. Recibe $beneficiario y opcionalmente $saltoPagina. --}}
 <div class="container {{ !empty($saltoPagina) ? 'page-break' : '' }}">
     <div class="nombre-container">
         <div class="beneficiario-nombre">

@@ -5,13 +5,8 @@ namespace App\Services;
 use App\Models\BitacoraAuditoria;
 use Illuminate\Support\Str;
 
-/**
- * Bitácora de movimientos del sistema. Cada movimiento genera un ticket (TCK-...) que
- * sirve como comprobante: quién, cuándo, qué se hizo y sobre qué registros.
- */
 class AuditoriaService
 {
-    /** Acciones registradas y su nombre para mostrar. */
     public const ACCIONES = [
         'inicio_sesion'                     => 'Inicio de sesión',
         'cierre_sesion'                     => 'Cierre de sesión',
@@ -25,6 +20,7 @@ class AuditoriaService
         'eliminacion'                       => 'Eliminación de registro',
     ];
 
+    // guarda un movimiento en la bitacora
     public static function registrar($tabla, $registroId, $accion, $anteriores = null, $nuevos = null, ?string $descripcion = null): BitacoraAuditoria
     {
         return BitacoraAuditoria::create([
@@ -39,10 +35,7 @@ class AuditoriaService
         ]);
     }
 
-    /**
-     * Registra una impresión: los filtros usados y la lista exacta de beneficiarios impresos.
-     * $beneficiarios: colección de Beneficiario con grupo.municipio cargado.
-     */
+    // guarda una impresion con la lista de beneficiarios
     public static function registrarImpresion(string $accion, string $descripcion, array $filtros, $beneficiarios): BitacoraAuditoria
     {
         $detalle = $beneficiarios->map(fn ($b) => [

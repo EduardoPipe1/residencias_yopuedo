@@ -7,13 +7,13 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Corrige promotores.region_id en datos ya importados: php artisan promotores:sincronizar-regiones
+// recalcula la region de los promotores
 Artisan::command('promotores:sincronizar-regiones', function () {
     $n = \App\Services\CatalogoService::sincronizarRegionesPromotores();
     $this->info("Promotores con región corregida: {$n}");
 })->purpose('Asigna a cada promotor la región donde tiene más grupos');
 
-// Crea o actualiza el usuario del sistema: php artisan usuario:crear
+// crear o actualizar el usuario del sistema
 Artisan::command('usuario:crear', function () {
     $nombre = $this->ask('Nombre completo (aparecerá en la bitácora)');
     $correo = $this->ask('Correo para iniciar sesión');

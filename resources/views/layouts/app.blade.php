@@ -8,34 +8,26 @@
 </head>
 <body class="bg-[#F4F6F9] text-gray-800 font-sans min-h-screen flex flex-col">
 
-    <!-- Encabezado Institucional -->
     <header class="bg-[#002F6C] border-b-4 border-[#0072CE] text-white shadow-md sticky top-0 z-50">
         
-        <!-- Fila Superior: Identidad Oficial y Títulos -->
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-4">
             
-            <!-- Logos + Título del Programa -->
             <div class="flex items-center space-x-3 sm:space-x-4">
                 
-                <!-- Contenedor estricto de Logos -->
                 <div class="flex items-center space-x-2 shrink-0">
-                    <!-- Logo Secretaría del Nuevo Comienzo -->
                     <img src="{{ asset('imagen/secnuevocomienzo.png') }}" 
                          alt="Secretaría del Nuevo Comienzo" 
                          style="height: 38px; max-height: 38px; width: auto; object-fit: contain;" 
                          class="block">
 
-                    <!-- Línea divisoria vertical -->
                     <span class="text-white/30 text-base font-light select-none">|</span>
 
-                    <!-- Logo Gobierno del Estado de Guanajuato -->
                     <img src="{{ asset('imagen/gobdelagente.png') }}" 
                          alt="Gobierno del Estado de Guanajuato" 
                          style="height: 38px; max-height: 38px; width: auto; object-fit: contain;" 
                          class="block">
                 </div>
 
-                <!-- Título del Programa -->
                 <div class="flex flex-col border-l border-white/20 pl-3">
                     <a href="{{ url('/idse') }}" class="text-base sm:text-lg font-black tracking-wide uppercase text-white hover:text-blue-200 transition leading-tight">
                         Yo Puedo, Gto Puede
@@ -46,7 +38,6 @@
                 </div>
             </div>
 
-            <!-- Distintivo de Gobierno de la Gente + usuario en sesión -->
             <div class="flex items-center gap-3">
                 <span class="hidden md:inline text-[11px] bg-[#004F9F] border border-blue-400/30 text-white px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm">
                     Gobierno de la Gente
@@ -61,24 +52,22 @@
             </div>
         </div>
 
-        <!-- Fila Inferior: Barra de Navegacion de Modulos -->
         <div class="bg-[#002454] border-t border-[#004F9F]/60">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 @php
-                    // Consulta y carga de información
                     $menuConsulta = [
                         ['url' => '/idse',              'activo' => 'idse*',              'texto' => 'Padrón IDSE'],
                         ['url' => '/importaciones',     'activo' => 'importaciones*',     'texto' => 'Importación'],
                         ['url' => '/promotores-grupos', 'activo' => 'promotores-grupos*', 'texto' => 'Promotores y Grupos'],
                         ['url' => '/auditoria',         'activo' => 'auditoria*',         'texto' => 'Bitácora'],
                     ];
-                    // Documentos oficiales que se imprimen
                     $menuImpresion = [
                         ['url' => '/folios',          'activo' => 'folios*',          'texto' => 'Solicitudes'],
                         ['url' => '/listas',          'activo' => 'listas*',          'texto' => 'Listas'],
                         ['url' => '/reconocimientos', 'activo' => 'reconocimientos*', 'texto' => 'Reconocimientos'],
                     ];
                 @endphp
+                {{-- menu --}}
                 <nav class="flex items-center gap-1 py-1.5 overflow-x-auto whitespace-nowrap text-xs font-bold uppercase tracking-wider scrollbar-none">
                     @foreach($menuConsulta as $item)
                         <a href="{{ url($item['url']) }}"
@@ -87,7 +76,6 @@
                         </a>
                     @endforeach
 
-                    {{-- Separador entre consulta e impresión --}}
                     <span class="mx-2 h-5 w-px bg-blue-300/40 shrink-0"></span>
                     <span class="text-[10px] text-blue-300/80 mr-1 shrink-0">Impresión</span>
 
@@ -102,12 +90,10 @@
         </div>
     </header>
 
-    <!-- Contenido Dinamico Principal -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         @yield('contenido')
     </main>
 
-    <!-- Pie de Pagina Institucional -->
     <footer class="bg-[#002F6C] border-t-2 border-[#0072CE] text-blue-100 text-xs py-4 mt-auto">
         <div class="max-w-7xl mx-auto px-4 text-center">
             Secretaría del Nuevo Comienzo &bull; Dirección de Fortalecimiento de Capacidades para el Desarrollo Humano &bull; Gobierno del Estado de Guanajuato

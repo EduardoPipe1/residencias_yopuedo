@@ -3,7 +3,6 @@
 @section('contenido')
 <div class="w-full" x-data="reconocimientosApp()">
     
-    <!-- Encabezado de Sección -->
     <div class="mb-8 bg-white p-6 rounded-lg shadow-sm border-l-4 border-[#0072CE]">
         <h1 class="text-2xl font-bold text-gray-900 uppercase tracking-wide">Módulo de Reconocimientos Oficiales</h1>
         <p class="text-gray-600 mt-1">Generación de diplomas en formato PDF de manera individual o mediante filtrado operativo masivo.</p>
@@ -11,7 +10,6 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        <!-- TARJETA 1: IMPRESIÓN INDIVIDUAL (ENLACE DIRECTO CON ESTILO DE BOTÓN) -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col">
             <div class="bg-[#002F6C] px-6 py-4">
                 <h2 class="text-xl font-bold text-white flex items-center">
@@ -25,11 +23,9 @@
                 <div class="mb-6 grow">
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Folio IDSE</label>
                     <div class="flex gap-2">
-                        <!-- Input de texto -->
                         <input type="text" x-model="folioBeneficiario" placeholder="Ej. IDSE202313633" 
                                class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#0072CE] focus:border-[#0072CE] p-3 border bg-gray-50 uppercase outline-none transition-colors">
                         
-                        <!-- Botón interactivo que actúa como enlace hipervínculo seguro -->
                         <a :href="folioBeneficiario && folioBeneficiario.trim() !== '' ? '/reconocimientos/' + folioBeneficiario.trim() + '/individual' : '#'" 
                            :class="folioBeneficiario && folioBeneficiario.trim() !== '' ? 'bg-[#002F6C] hover:bg-[#001d42] shadow cursor-pointer' : 'bg-gray-300 cursor-not-allowed text-gray-500 pointer-events-none'"
                            class="px-5 py-3 rounded-lg font-bold text-white transition-all shrink-0 flex items-center gap-1 text-center justify-center"
@@ -43,7 +39,6 @@
             </div>
         </div>
 
-        <!-- TARJETA 2: IMPRESIÓN MASIVA (Con Filtros Dependientes) -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
             <div class="bg-green-700 px-6 py-4">
                 <h2 class="text-xl font-bold text-white flex items-center">
@@ -56,7 +51,6 @@
                 
                 <form action="/reconocimientos/masivo" method="GET" target="_blank" class="space-y-5">
                     
-                    <!-- Filtro: Región (carga automática de promotores y grupos) -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Región</label>
                         <select name="region_id" x-model="regionSeleccionada" @change="cargarPromotores()" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
@@ -68,7 +62,6 @@
                         <span class="text-xs text-gray-500 mt-1 block">Al elegir una región se cargan automáticamente sus promotores y grupos.</span>
                     </div>
 
-                    <!-- Filtro: Promotor -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Promotor Asignado</label>
                         <select name="promotor_id" x-model="promotorSeleccionado" @change="cargarGrupos()" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
@@ -79,7 +72,6 @@
                         </select>
                     </div>
 
-                    <!-- Filtro: Grupo -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Grupo Formativo</label>
                         <select name="grupo_id" x-model="grupoSeleccionado" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-green-600 focus:border-green-600 p-2.5 border bg-gray-50 outline-none">
@@ -90,7 +82,6 @@
                         </select>
                     </div>
 
-                    {{-- Los reconocimientos se emiten únicamente a beneficiarios acreditados --}}
                     <input type="hidden" name="estatus" value="Acreditado">
                     <p class="text-xs text-gray-500">Se imprimen únicamente los beneficiarios con estatus <span class="font-semibold">Acreditado</span>.</p>
                     
@@ -106,7 +97,6 @@
     </div>
 </div>
 
-<!-- Alertas de sesión -->
 @if(session('warning'))
 <div class="fixed bottom-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded shadow-lg max-w-md z-50" 
      role="alert" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
@@ -118,7 +108,6 @@
 </div>
 @endif
 
-<!-- Lógica de Alpine JS para los selectores dependientes -->
 <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('reconocimientosApp', () => ({
@@ -165,7 +154,6 @@
                             this.gruposFiltrados = data;
                         });
                 } else if (this.regionSeleccionada) {
-                    // Se quitó el promotor: volver a mostrar todos los grupos de la región
                     fetch('/reconocimientos/api/grupos/region/' + this.regionSeleccionada)
                         .then(res => res.json())
                         .then(data => {

@@ -7,12 +7,9 @@ use App\Services\AuditoriaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
-/**
- * Módulo BITÁCORA: consulta de movimientos y comprobante en PDF de cada ticket.
- * Sirve como respaldo de la operadora: qué imprimió/importó, cuándo y de quiénes.
- */
 class AuditoriaController extends Controller
 {
+    // buscador de la bitacora
     public function index(Request $request)
     {
         $query = BitacoraAuditoria::query()->orderByDesc('created_at')->orderByDesc('id');
@@ -27,7 +24,6 @@ class AuditoriaController extends Controller
             $query->where('accion', $request->accion);
         }
         if ($request->filled('buscar')) {
-            // Busca en el ticket, la descripción y el detalle (folios, nombres, grupos, municipios)
             $termino = trim($request->buscar);
             $folio = str_ireplace('IDSE', '', $termino);
             $query->where(function ($q) use ($termino, $folio) {

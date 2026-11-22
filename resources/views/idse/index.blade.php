@@ -2,7 +2,6 @@
 @section('titulo', 'Padrón de Beneficiarios')
 @section('contenido')
 
-    <!-- Encabezado de la Seccion -->
     <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-black text-[#002F6C] uppercase tracking-tight">Buscador de Beneficiarios</h1>
@@ -16,11 +15,9 @@
         </div>
     </div>
 
-    <!-- Filtros de Busqueda Multicriterio -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 mb-6">
         <form method="GET" action="{{ url('/idse') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
             
-            <!-- Campo 1: Folio o CURP -->
             <div>
                 <label for="buscar" class="block text-xs font-bold text-gray-700 uppercase mb-1">Folio o CURP</label>
                 <input type="text" name="buscar" id="buscar" value="{{ request('buscar') }}" 
@@ -28,7 +25,6 @@
                        class="w-full text-sm border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-[#004F9F] focus:ring-1 focus:ring-[#004F9F]">
             </div>
 
-            <!-- Campo 2: Nombre o Apellidos -->
             <div>
                 <label for="nombre" class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre o Apellidos</label>
                 <input type="text" name="nombre" id="nombre" value="{{ request('nombre') }}" 
@@ -36,7 +32,6 @@
                        class="w-full text-sm border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-[#004F9F] focus:ring-1 focus:ring-[#004F9F]">
             </div>
 
-            <!-- Campo 3: Estatus Binario -->
             <div>
                 <label for="estatus" class="block text-xs font-bold text-gray-700 uppercase mb-1">Estatus</label>
                 <select name="estatus" id="estatus" 
@@ -47,7 +42,6 @@
                 </select>
             </div>
 
-            <!-- Botones de Accion -->
             <div class="flex items-end space-x-2">
                 <button type="submit" 
                         class="w-full py-2 bg-[#002F6C] hover:bg-[#004F9F] text-white text-xs font-bold uppercase tracking-wider rounded shadow transition">
@@ -62,7 +56,6 @@
         </form>
     </div>
 
-    <!-- Tabla del Padron -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm text-gray-700">

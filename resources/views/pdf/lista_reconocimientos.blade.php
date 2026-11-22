@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Lista de reconocimientos</title>
-    {{-- Formato oficial "LISTA (1).pdf": hoja carta vertical, logos, encabezado azul y casillas de firma/fecha --}}
     <style>
         @page { margin: 40pt 36pt 36pt 36pt; size: letter portrait; }
         body { font-family: 'Helvetica', 'Arial', sans-serif; color: #000; margin: 0; }
@@ -21,7 +20,7 @@
             border: 0.75pt solid #000; padding: 4pt 2pt; text-align: center;
         }
         .lista td { border: 0.75pt solid #000; font-size: 6.5pt; padding: 2pt 2pt; height: 20pt; vertical-align: middle; }
-        .lista thead { display: table-header-group; }   /* repite encabezado si el grupo ocupa varias hojas */
+        .lista thead { display: table-header-group; }
         .lista tr { page-break-inside: avoid; }
         .centro { text-align: center; }
     </style>

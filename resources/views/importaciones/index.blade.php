@@ -29,7 +29,6 @@
         </div>
     @endif
 
-    <!-- Tarjeta de Carga de Archivos -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8 max-w-2xl">
         <h2 class="text-base font-semibold text-[#002F6C] mb-4">Seleccionar archivo de datos</h2>
         
@@ -52,7 +51,6 @@
                 <span x-show="procesando" x-cloak>Procesando…</span>
             </button>
 
-            {{-- Aviso mientras se sube y procesa el archivo (no se debe cerrar la página) --}}
             <div x-show="procesando" x-cloak class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
                 <div class="bg-white rounded-xl shadow-xl p-8 max-w-sm text-center">
                     <div class="mx-auto mb-4 h-10 w-10 rounded-full border-4 border-blue-200 border-t-[#004F9F] animate-spin"></div>
@@ -63,7 +61,6 @@
         </form>
     </div>
 
-    <!-- Historial de Archivos Subidos -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
             <h2 class="text-sm font-bold text-[#002F6C] uppercase tracking-wide">Archivos procesados en almacenamiento</h2>

@@ -9,7 +9,6 @@ use App\Models\Grupo;
 
 class DocumentoController extends Controller
 {
-    // 1. Solicitud de Registro individual (Vertical)
     public function solicitud($id)
     {
         $beneficiario = Beneficiario::with('grupo.municipio', 'grupo.promotor')->findOrFail($id);
@@ -20,7 +19,6 @@ class DocumentoController extends Controller
         return $pdf->stream("Solicitud_{$beneficiario->folio}.pdf");
     }
 
-    // 2. Reconocimiento institucional (Horizontal / Landscape)
     public function reconocimiento($id)
     {
         $beneficiario = Beneficiario::with('grupo.municipio')->findOrFail($id);

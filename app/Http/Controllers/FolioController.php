@@ -10,9 +10,6 @@ use Illuminate\Http\Request;
 
 class FolioController extends Controller
 {
-    /**
-     * Vista de catálogo con filtros para seleccionar solicitudes a imprimir.
-     */
     public function index(Request $request)
     {
         $grupos = Grupo::with('municipio')->orderBy('identificador_grupo')->get();
@@ -21,12 +18,8 @@ class FolioController extends Controller
         return view('folios.index', compact('grupos', 'promotores'));
     }
 
-    /**
-     * Genera la solicitud de registro individual en formato PDF.
-     */
     public function imprimirIndividual(Beneficiario $beneficiario)
     {
-        // Carga las relaciones requeridas por la plantilla oficial
         $beneficiario->loadMissing('grupo.municipio', 'grupo.promotor');
 
         $pdf = Pdf::loadView('pdf.solicitud', compact('beneficiario'))
@@ -35,9 +28,6 @@ class FolioController extends Controller
         return $pdf->stream("Solicitud_{$beneficiario->folio}.pdf");
     }
 
-    /**
-     * Genera un PDF consolidado con las solicitudes filtradas por grupo o promotor.
-     */
     public function imprimirMasivo(Request $request)
     {
         $query = Beneficiario::with('grupo.municipio', 'grupo.promotor');
@@ -60,7 +50,6 @@ class FolioController extends Controller
             return back()->with('warning', 'No se encontraron registros para los filtros seleccionados.');
         }
 
-        // Genera el documento con todas las solicitudes seleccionadas
         $pdf = Pdf::loadView('pdf.solicitud_masiva', compact('beneficiarios'))
                   ->setPaper('letter', 'portrait');
 
